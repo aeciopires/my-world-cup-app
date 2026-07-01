@@ -1,0 +1,133 @@
+# -- Number of pod replicas (ignored when autoscaling.enabled is true)
+replicaCount: 1
+
+image:
+  # -- Container image repository
+  repository: my-world-cup-app
+  # -- Container image tag (defaults to .Chart.AppVersion when empty)
+  tag: ""
+  # -- Container image pull policy
+  pullPolicy: IfNotPresent
+
+# -- References to secrets used to pull the image from a private registry
+imagePullSecrets: []
+
+# -- Override the chart name used in generated resource names
+nameOverride: ""
+# -- Override the full generated resource name
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Whether to create a ServiceAccount for the pod
+  create: true
+  # -- Annotations to add to the ServiceAccount
+  annotations: {}
+  # -- Name of the ServiceAccount to use (generated if empty and create=true)
+  name: ""
+
+podAnnotations:
+  # -- Enables Prometheus scrape discovery for this pod
+  prometheus.io/scrape: "true"
+  # -- Port a cluster Prometheus should scrape for metrics
+  prometheus.io/port: "8080"
+  # -- Path a cluster Prometheus should scrape for metrics
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  # -- Require the pod to run as a non-root user
+  runAsNonRoot: true
+
+securityContext:
+  # -- Disallow privilege escalation for the container
+  allowPrivilegeEscalation: false
+  # -- Mount the container's root filesystem as read-only
+  readOnlyRootFilesystem: true
+  capabilities:
+    # -- Linux capabilities to drop from the container
+    drop: ["ALL"]
+
+service:
+  # -- Kubernetes Service type
+  type: ClusterIP
+  # -- Service port (also used as the Prometheus scrape port annotation)
+  port: 8080
+
+# -- Environment variables passed through to the container. PORT must match
+# service.port and containerPort below if overridden. Uncomment any
+# WORLDCUP_*_URL entry to override the default openfootball data source.
+env:
+  PORT: "8080"
+  # WORLDCUP_MATCHES_URL: ""
+  # WORLDCUP_GROUPS_URL: ""
+  # WORLDCUP_TEAMS_URL: ""
+  # WORLDCUP_STADIUMS_URL: ""
+
+# -- Port the application listens on inside the container
+containerPort: 8080
+
+resources:
+  requests:
+    # -- CPU request
+    cpu: 50m
+    # -- Memory request
+    memory: 32Mi
+  limits:
+    # -- CPU limit
+    cpu: 250m
+    # -- Memory limit
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    # -- Liveness probe HTTP path
+    path: /healthz
+    # -- Liveness probe port (named container port)
+    port: http
+  # -- Seconds to wait before the first liveness probe
+  initialDelaySeconds: 5
+  # -- Seconds between liveness probes
+  periodSeconds: 15
+
+readinessProbe:
+  httpGet:
+    # -- Readiness probe HTTP path
+    path: /healthz
+    # -- Readiness probe port (named container port)
+    port: http
+  # -- Seconds to wait before the first readiness probe
+  initialDelaySeconds: 3
+  # -- Seconds between readiness probes
+  periodSeconds: 10
+
+ingress:
+  # -- Enable the Ingress resource
+  enabled: false
+  # -- IngressClass name (leave empty to use the cluster default)
+  className: ""
+  # -- Annotations to add to the Ingress resource
+  annotations: {}
+  # -- List of hosts and paths to route to the Service
+  hosts:
+    - host: worldcup.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- TLS configuration for the Ingress resource
+  tls: []
+
+autoscaling:
+  # -- Enable the HorizontalPodAutoscaler (disables replicaCount)
+  enabled: false
+  # -- Minimum number of replicas
+  minReplicas: 1
+  # -- Maximum number of replicas
+  maxReplicas: 3
+  # -- Target average CPU utilization percentage
+  targetCPUUtilizationPercentage: 80
+
+# -- Node selector for pod scheduling
+nodeSelector: {}
+# -- Tolerations for pod scheduling
+tolerations: []
+# -- Affinity rules for pod scheduling
+affinity: {}

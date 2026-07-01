@@ -1,0 +1,58 @@
+{{define "content"}}
+<section class="page-header">
+  <h1>Group Stage Standings</h1>
+  <p class="muted">Tie-break order: points, goal difference, goals for, alphabetical. Full FIFA head-to-head rules are not applied.</p>
+</section>
+
+<div class="group-grid">
+  {{range .Tables}}
+  <section class="card">
+    <h2>{{.Group.Name}}</h2>
+    <div class="table-responsive">
+    <table class="table standings-table">
+      <thead>
+        <tr>
+          <th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Standings}}
+        <tr>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team}} {{.Team}}</span></td>
+          <td>{{.Played}}</td>
+          <td>{{.Won}}</td>
+          <td>{{.Drawn}}</td>
+          <td>{{.Lost}}</td>
+          <td>{{.GoalsFor}}</td>
+          <td>{{.GoalsAgainst}}</td>
+          <td>{{.GoalDifference}}</td>
+          <td><strong>{{.Points}}</strong></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+
+    <details class="group-matches">
+      <summary>Matches</summary>
+      <div class="table-responsive">
+      <table class="table">
+        <thead><tr><th>Date</th><th>Match</th><th>Result</th></tr></thead>
+        <tbody>
+          {{range .Matches}}
+          <tr>
+            <td>{{.Date}}</td>
+            <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{.Team1}}</span> vs <span class="team">{{index $.Flags .Team2}} {{.Team2}}</span></td>
+            <td>
+              {{if .FullTime}}{{.FullTime.Home}} - {{.FullTime.Away}}{{else}}scheduled{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+      </div>
+    </details>
+  </section>
+  {{end}}
+</div>
+{{end}}

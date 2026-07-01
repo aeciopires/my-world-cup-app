@@ -1,0 +1,64 @@
+{{define "content"}}
+<section class="hero">
+  <h1>{{.TournamentName}}</h1>
+  <p>Groups, standings, and knockout stage results for the FIFA World Cup 2026, updated on demand from live data.</p>
+  <p id="last-updated-hero" class="muted">Last updated: {{.LastUpdated}} ({{.DataSource}})</p>
+</section>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Upcoming Matches</h2>
+    {{if .Upcoming}}
+    <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Date</th><th>Round</th><th>Match</th><th>Venue</th></tr></thead>
+      <tbody>
+        {{range .Upcoming}}
+        <tr>
+          <td>{{.Date}}</td>
+          <td>{{.Round}}</td>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{.Team1}}</span> vs <span class="team">{{index $.Flags .Team2}} {{.Team2}}</span></td>
+          <td>{{.Ground}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+    {{else}}
+    <p class="muted">No upcoming matches scheduled.</p>
+    {{end}}
+  </section>
+
+  <section class="card">
+    <h2>Recent Results</h2>
+    {{if .Recent}}
+    <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Date</th><th>Round</th><th>Result</th></tr></thead>
+      <tbody>
+        {{range .Recent}}
+        <tr>
+          <td>{{.Date}}</td>
+          <td>{{.Round}}</td>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{.Team1}}</span> {{.FullTime.Home}} - {{.FullTime.Away}} <span class="team">{{index $.Flags .Team2}} {{.Team2}}</span></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+    {{else}}
+    <p class="muted">No results yet.</p>
+    {{end}}
+  </section>
+</div>
+
+<section class="card">
+  <h2>Explore</h2>
+  <div class="quick-links">
+    <a class="btn" href="/groups">Group Standings</a>
+    <a class="btn" href="/knockout">Knockout Stage</a>
+    <a class="btn" href="/matches">All Matches</a>
+    <a class="btn" href="/links">Official FIFA Links</a>
+  </div>
+</section>
+{{end}}

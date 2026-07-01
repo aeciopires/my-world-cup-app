@@ -1,0 +1,43 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en-US" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.PageTitle}} · My World Cup App</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-row">
+      <a class="brand" href="/">🏆 My World Cup App</a>
+      <nav class="main-nav">
+        <a href="/" class="{{if eq .ActiveNav "home"}}active{{end}}">Home</a>
+        <a href="/groups" class="{{if eq .ActiveNav "groups"}}active{{end}}">Groups</a>
+        <a href="/knockout" class="{{if eq .ActiveNav "knockout"}}active{{end}}">Knockout</a>
+        <a href="/matches" class="{{if eq .ActiveNav "matches"}}active{{end}}">Matches</a>
+        <a href="/stats" class="{{if eq .ActiveNav "stats"}}active{{end}}">Stats</a>
+        <a href="/links" class="{{if eq .ActiveNav "links"}}active{{end}}">FIFA Links</a>
+      </nav>
+      <div class="header-actions">
+        <button id="refresh-btn" class="btn btn-refresh" type="button">Update data</button>
+        <button id="theme-toggle" class="btn btn-theme" type="button" aria-label="Toggle dark/light theme">🌓</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    {{template "content" .}}
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Data sourced from <a href="https://github.com/openfootball/worldcup.json" target="_blank" rel="noopener noreferrer">openfootball/worldcup.json</a>. Not affiliated with FIFA.</p>
+      <p id="last-updated-footer">Last updated: {{.LastUpdated}} ({{.DataSource}})</p>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,18 @@
+apiVersion: v2
+name: my-world-cup-app
+description: A Helm chart for My World Cup App, a Go web application displaying FIFA World Cup 2026 standings, knockout results, and statistics.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/aeciopires/my-world-cup-app
+sources:
+  - https://github.com/aeciopires/my-world-cup-app
+keywords:
+  - worldcup
+  - fifa
+  - football
+  - soccer
+  - golang
+maintainers:
+  - name: Aecio Pires
+    email: aeciopires@gmail.com

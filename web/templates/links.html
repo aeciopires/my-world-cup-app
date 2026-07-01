@@ -1,0 +1,36 @@
+{{define "content"}}
+<section class="page-header">
+  <h1>Official FIFA Resources</h1>
+  <p class="muted">External links to official FIFA World Cup 2026 resources and related content.</p>
+</section>
+
+<section class="card">
+  <ul class="link-list">
+    {{range .Links}}
+    <li>
+      <a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Title}}</a>
+      <p class="muted">{{.Description}}</p>
+    </li>
+    {{end}}
+  </ul>
+</section>
+
+{{if .Stadiums}}
+<section class="card">
+  <h2>Stadiums</h2>
+  <table class="table">
+    <thead><tr><th>Stadium</th><th>City</th><th>Country</th><th>Capacity</th></tr></thead>
+    <tbody>
+      {{range .Stadiums}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{.City}}</td>
+        <td>{{.Country}}</td>
+        <td>{{.Capacity}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+{{end}}
+{{end}}

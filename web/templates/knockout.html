@@ -1,0 +1,40 @@
+{{define "content"}}
+<section class="page-header">
+  <h1>Knockout Stage</h1>
+  <p class="muted">Round of 32 through the Final. Matches without a result yet are marked "scheduled".</p>
+</section>
+
+{{if .Rounds}}
+<div class="knockout-rounds">
+  {{range .Rounds}}
+  <section class="card">
+    <h2>{{.Name}}</h2>
+    <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Date</th><th>Match</th><th>Venue</th><th>Result</th></tr></thead>
+      <tbody>
+        {{range .Matches}}
+        <tr>
+          <td>{{.Date}}</td>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{.Team1}}</span> vs <span class="team">{{index $.Flags .Team2}} {{.Team2}}</span></td>
+          <td>{{.Ground}}</td>
+          <td>
+            {{if .FullTime}}
+              {{.FullTime.Home}} - {{.FullTime.Away}}
+              {{if .Penalties}} (pens {{.Penalties.Home}}-{{.Penalties.Away}}){{end}}
+            {{else}}
+              scheduled
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {{end}}
+</div>
+{{else}}
+<p class="muted">Knockout stage matches are not available yet.</p>
+{{end}}
+{{end}}
