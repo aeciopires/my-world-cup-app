@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-07-05
+
+### Added
+
+- Official fifa.com links for every team, stadium, and host city (`baseData.TeamLinks`/`StadiumLinks`/`CityLinks`, built in `internal/handlers/fifa_links.go`), rendered next to team names, match venues, and the Stadiums table on the FIFA Links page.
+- Three more official resources on the FIFA Links page: Official Match Ball, Official Posters, and Mascots.
+
+### Changed
+
+- Refreshed the dark/light theme color palettes and general UI polish: sticky header with shadow, pill-style active nav highlighting, card shadows, button hover/focus states, and table row hover (`web/static/css/style.css`).
+- Team flags now render as bordered flag "chip" badges (new `flag` template func) instead of a bare emoji; match results render as a colored score pill (new `score` template func), with unplayed matches shown as a "scheduled" badge.
+- Updated the screenshots in `images/` to reflect the refreshed UI.
+
 ## [1.0.0] - 2026-06-30
 
 ### Added
@@ -21,8 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `/stats` page and `internal/services/stats.go`: top scorers (aggregated goal tally per player) and overall team statistics (played/won/drawn/lost/goals/points across group and knockout stages).
 - Helm chart (`charts/my-world-cup-app`) for Kubernetes deployment, with liveness/readiness probes on `/healthz`, Prometheus scrape annotations, and optional Ingress/HorizontalPodAutoscaler.
 - Unit tests for the stats service and additional handler integration tests for `/stats` and `/metrics`.
-
-## [Unreleased]
 
 ### Planned / Future Improvements
 

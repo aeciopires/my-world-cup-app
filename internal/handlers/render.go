@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/aeciopires/my-world-cup-app/internal/data"
@@ -25,6 +26,15 @@ var templateFuncs = template.FuncMap{
 			return template.HTML(`<a href="` + template.HTMLEscapeString(url) + `" target="_blank" rel="noopener noreferrer">` + template.HTMLEscapeString(name) + `</a>`)
 		}
 		return template.HTML(template.HTMLEscapeString(name))
+	},
+	// flag renders a team's flag emoji inside a styled chip, so every page
+	// gets the same flag presentation without repeating markup per template.
+	"flag": func(flags map[string]string, name string) template.HTML {
+		return template.HTML(`<span class="flag">` + template.HTMLEscapeString(flags[name]) + `</span>`)
+	},
+	// score renders a full-time result as a styled pill badge.
+	"score": func(home, away int) template.HTML {
+		return template.HTML(`<span class="score">` + strconv.Itoa(home) + ` - ` + strconv.Itoa(away) + `</span>`)
 	},
 }
 

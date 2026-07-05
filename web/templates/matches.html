@@ -14,10 +14,10 @@
         <td>{{.Date}}</td>
         <td>{{.Round}}</td>
         <td>{{.Group}}</td>
-        <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> vs <span class="team">{{index $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
+        <td class="team-cell"><span class="team">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> vs <span class="team">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
         <td>{{linked $.StadiumLinks .Ground}}</td>
         <td>
-          {{if .FullTime}}{{.FullTime.Home}} - {{.FullTime.Away}}{{else}}scheduled{{end}}
+          {{if .FullTime}}{{score .FullTime.Home .FullTime.Away}}{{else}}<span class="badge-scheduled">scheduled</span>{{end}}
         </td>
       </tr>
       {{end}}
