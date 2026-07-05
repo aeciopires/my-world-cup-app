@@ -138,6 +138,7 @@ type linksData struct {
 var fifaLinks = []externalLink{
 	{Title: "Teams", URL: "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/teams", Description: "Official list of qualified national teams."},
 	{Title: "Standings", URL: "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/standings", Description: "Official FIFA group standings."},
+	{Title: "Groups: How Teams Qualify & Tie-Breakers", URL: "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/groups-how-teams-qualify-tie-breakers", Description: "Official explanation of the group stage format and tie-breaking rules."},
 	{Title: "Scores & Fixtures", URL: "https://www.fifa.com/pt/tournaments/mens/worldcup/canadamexicousa2026/scores-fixtures?country=BR&wtw-filter=ALL", Description: "Official match schedule and results."},
 	{Title: "Stadiums", URL: "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/stadiums", Description: "Venues hosting the 2026 tournament."},
 	{Title: "Official Match Ball", URL: "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/official-match-ball", Description: "The official match ball of the FIFA World Cup 2026."},

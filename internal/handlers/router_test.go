@@ -70,6 +70,7 @@ func TestLinksPage_ContainsAllFIFALinks(t *testing.T) {
 	required := []string{
 		"fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/teams",
 		"fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/standings",
+		"fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/groups-how-teams-qualify-tie-breakers",
 		"fifa.com/pt/tournaments/mens/worldcup/canadamexicousa2026/scores-fixtures",
 		"fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/stadiums",
 		"fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/official-match-ball",

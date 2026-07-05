@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Official fifa.com links for every team, stadium, and host city (`baseData.TeamLinks`/`StadiumLinks`/`CityLinks`, built in `internal/handlers/fifa_links.go`), rendered next to team names, match venues, and the Stadiums table on the FIFA Links page.
 - Three more official resources on the FIFA Links page: Official Match Ball, Official Posters, and Mascots.
+- Official FIFA article on the FIFA Links page explaining the group stage format and tie-breaking rules ("Groups: How Teams Qualify & Tie-Breakers").
 - Graphical knockout bracket on `/knockout`: rounds connected with bracket lines, winning teams highlighted, penalty shoot-outs annotated, and the match for third place rendered as its own standalone fixture — shown alongside the existing round-by-round detail tables (`internal/handlers/pages.go`, `web/templates/knockout.html`).
 - Matches page filtering: `/matches` now accepts combinable `round`, `group`, and `team` query parameters (`services.FilterMatches`/`MatchFilterOptions` in `internal/services/matches.go`), with a filter form, a "Showing X of Y matches" summary, and a "Clear filters" link.
 
@@ -43,7 +44,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Planned / Future Improvements
 
-- Implement full FIFA tie-break rules (head-to-head results, fair play points) for group standings.
 - Periodic automatic background refresh (in addition to startup and manual refresh).
 - Optional persistent cache (e.g. local file) to survive restarts without a network call.
-- Internationalization (additional UI languages beyond en-US).
