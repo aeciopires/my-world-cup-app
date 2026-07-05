@@ -313,6 +313,155 @@ main.container {
   margin-top: 0.75rem;
 }
 
+.section-title {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+/* Knockout bracket */
+
+.bracket-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+}
+
+.bracket {
+  display: flex;
+  align-items: stretch;
+  gap: 2.5rem;
+  min-width: max-content;
+  padding: 0.25rem 1.25rem 0.25rem 0.25rem;
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+}
+
+.bracket-round-title {
+  text-align: center;
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.bracket-round-matches {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 1rem;
+}
+
+.bracket-pair {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 0.85rem;
+}
+
+.bracket-round:not(:last-child) .bracket-pair:not(.bracket-pair-single)::after {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  right: -1.25rem;
+  width: 2px;
+  background: var(--border);
+}
+
+.bracket-match {
+  position: relative;
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.bracket-round:not(:last-child) .bracket-match::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -1.25rem;
+  width: 1.25rem;
+  border-top: 2px solid var(--border);
+}
+
+.bracket-team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+.bracket-team-name {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-team-score {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.bracket-team.winner {
+  font-weight: 700;
+}
+
+.bracket-team.winner .bracket-team-score {
+  color: var(--accent);
+}
+
+.bracket-pens {
+  margin-top: 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.bracket-third-place {
+  margin-top: 1.75rem;
+  max-width: 230px;
+}
+
+/* Matches filter form */
+
+.filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.filter-field select {
+  background: var(--bg-elevated-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.9rem;
+  min-width: 160px;
+}
+
 .site-footer {
   border-top: 1px solid var(--border);
   padding: 1.5rem 0;

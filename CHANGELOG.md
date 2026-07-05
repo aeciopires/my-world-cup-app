@@ -10,12 +10,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Official fifa.com links for every team, stadium, and host city (`baseData.TeamLinks`/`StadiumLinks`/`CityLinks`, built in `internal/handlers/fifa_links.go`), rendered next to team names, match venues, and the Stadiums table on the FIFA Links page.
 - Three more official resources on the FIFA Links page: Official Match Ball, Official Posters, and Mascots.
+- Graphical knockout bracket on `/knockout`: rounds connected with bracket lines, winning teams highlighted, penalty shoot-outs annotated, and the match for third place rendered as its own standalone fixture — shown alongside the existing round-by-round detail tables (`internal/handlers/pages.go`, `web/templates/knockout.html`).
+- Matches page filtering: `/matches` now accepts combinable `round`, `group`, and `team` query parameters (`services.FilterMatches`/`MatchFilterOptions` in `internal/services/matches.go`), with a filter form, a "Showing X of Y matches" summary, and a "Clear filters" link.
 
 ### Changed
 
 - Refreshed the dark/light theme color palettes and general UI polish: sticky header with shadow, pill-style active nav highlighting, card shadows, button hover/focus states, and table row hover (`web/static/css/style.css`).
 - Team flags now render as bordered flag "chip" badges (new `flag` template func) instead of a bare emoji; match results render as a colored score pill (new `score` template func), with unplayed matches shown as a "scheduled" badge.
 - Updated the screenshots in `images/` to reflect the refreshed UI.
+
+### Fixed
+
+- `models.Match.Winner()` now accounts for a penalty shoot-out when full time ends level, so knockout draws decided on penalties correctly report a winner (previously only the full-time score was checked). This backs the new bracket's winner highlighting.
 
 ## [1.0.0] - 2026-06-30
 
@@ -38,8 +44,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Planned / Future Improvements
 
 - Implement full FIFA tie-break rules (head-to-head results, fair play points) for group standings.
-- Add a graphical knockout bracket view.
-- Support filtering the matches page by round/group/team via query parameters.
 - Periodic automatic background refresh (in addition to startup and manual refresh).
 - Optional persistent cache (e.g. local file) to survive restarts without a network call.
 - Internationalization (additional UI languages beyond en-US).

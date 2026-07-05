@@ -1,9 +1,46 @@
 {{define "content"}}
 <section class="page-header">
   <h1>All Matches</h1>
-  <p class="muted">{{len .Matches}} matches across the group and knockout stages.</p>
+  <p class="muted">
+    {{if or .Round .Group .Team}}Showing {{len .Matches}} of {{.TotalMatches}} matches.{{else}}{{.TotalMatches}} matches across the group and knockout stages.{{end}}
+  </p>
 </section>
 
+<section class="card">
+  <form class="filters" method="get" action="/matches">
+    <label class="filter-field">
+      <span>Round</span>
+      <select name="round">
+        <option value="">All rounds</option>
+        {{range .FilterOptions.Rounds}}
+        <option value="{{.}}"{{if eq . $.Round}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label class="filter-field">
+      <span>Group</span>
+      <select name="group">
+        <option value="">All groups</option>
+        {{range .FilterOptions.Groups}}
+        <option value="{{.}}"{{if eq . $.Group}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </label>
+    <label class="filter-field">
+      <span>Team</span>
+      <select name="team">
+        <option value="">All teams</option>
+        {{range .FilterOptions.Teams}}
+        <option value="{{.}}"{{if eq . $.Team}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+    </label>
+    <button type="submit" class="btn btn-refresh">Apply filters</button>
+    {{if or .Round .Group .Team}}<a class="btn" href="/matches">Clear filters</a>{{end}}
+  </form>
+</section>
+
+{{if .Matches}}
 <section class="card">
   <div class="table-responsive">
   <table class="table">
@@ -25,4 +62,7 @@
   </table>
   </div>
 </section>
+{{else}}
+<p class="muted">No matches match the selected filters.</p>
+{{end}}
 {{end}}

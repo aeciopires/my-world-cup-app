@@ -34,12 +34,12 @@ A lightweight Go web application that displays the FIFA World Cup 2026 (Canada/M
 ## Features
 
 - **Group standings** — computed on the fly from match results (played, won, drawn, lost, goals, goal difference, points).
-- **Knockout stage** — Round of 32 through the Final, grouped by round.
-- **Match list** — every fixture with date, round, group, venue, and result.
+- **Knockout stage** — a graphical bracket (Round of 32 through the Final, plus the match for third place) with connector lines and winner highlighting, alongside round-by-round detail tables with date/venue/result.
+- **Match list** — every fixture with date, round, group, venue, and result, filterable by round, group, and/or team via query parameters (combinable).
 - **Live data refresh** — data is fetched from [openfootball/worldcup.json](https://github.com/openfootball/worldcup.json) on startup and via the "Update data" button; an embedded snapshot is used as a fallback if the live source is unreachable.
 - **Statistics** — top scorers and overall team records (played/won/drawn/lost/goals/points) aggregated across group and knockout stage matches.
 - **Dark / light theme** — toggle persisted in the browser via `localStorage`.
-- **Official FIFA links** — stadiums, teams, standings, articles, scores & fixtures, Club World Cup 2025, and the official FIFA Sound playlist.
+- **Official FIFA links** — stadiums, teams, standings, articles, scores & fixtures, official match ball, posters, mascots, Club World Cup 2025, and the official FIFA Sound playlist; team names, stadiums, and host cities across the app link to their official fifa.com pages.
 - **Observability** — `/healthz` health check and a Prometheus-compatible `/metrics` endpoint (HTTP request counts/latency, data refresh outcomes).
 
 ## Screenshots
@@ -158,8 +158,8 @@ flowchart TD
 |--------|-------------|-----------------------|---------------------------------------|
 | GET    | `/`         | `pages.Home`          | Dashboard: upcoming/recent matches    |
 | GET    | `/groups`   | `pages.Groups`        | Group standings and results           |
-| GET    | `/knockout` | `pages.Knockout`      | Knockout stage rounds                 |
-| GET    | `/matches`  | `pages.Matches`       | Full match list                       |
+| GET    | `/knockout` | `pages.Knockout`      | Knockout stage bracket + round detail |
+| GET    | `/matches`  | `pages.Matches`       | Match list, filterable by `round`/`group`/`team` query params |
 | GET    | `/stats`    | `pages.Stats`         | Top scorers and team statistics       |
 | GET    | `/links`    | `pages.Links`         | Official FIFA/Spotify links, stadiums |
 | POST   | `/refresh`  | `refresh.Refresh`     | Triggers a live data refresh          |

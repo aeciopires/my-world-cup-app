@@ -62,7 +62,9 @@ func (m Match) Played() bool {
 	return m.FullTime != nil
 }
 
-// Winner returns the name of the winning team, or "" for a draw/unplayed match.
+// Winner returns the name of the winning team, or "" for a draw/unplayed
+// match. For a knockout fixture that finishes level after full time, the
+// penalty shoot-out (if recorded) decides the winner.
 func (m Match) Winner() string {
 	if m.FullTime == nil {
 		return ""
@@ -72,6 +74,14 @@ func (m Match) Winner() string {
 	}
 	if m.FullTime.Away > m.FullTime.Home {
 		return m.Team2
+	}
+	if m.Penalties != nil {
+		if m.Penalties.Home > m.Penalties.Away {
+			return m.Team1
+		}
+		if m.Penalties.Away > m.Penalties.Home {
+			return m.Team2
+		}
 	}
 	return ""
 }

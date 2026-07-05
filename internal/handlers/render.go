@@ -36,6 +36,21 @@ var templateFuncs = template.FuncMap{
 	"score": func(home, away int) template.HTML {
 		return template.HTML(`<span class="score">` + strconv.Itoa(home) + ` - ` + strconv.Itoa(away) + `</span>`)
 	},
+	// pairs groups a round's matches two at a time (in bracket order) so the
+	// knockout template can render each pair as a bracket "elbow" that feeds
+	// into a single match in the next round. A trailing single match (the
+	// Final, which has no sibling) is returned as its own group of one.
+	"pairs": func(matches []models.Match) [][]models.Match {
+		groups := make([][]models.Match, 0, (len(matches)+1)/2)
+		for i := 0; i < len(matches); i += 2 {
+			end := i + 2
+			if end > len(matches) {
+				end = len(matches)
+			}
+			groups = append(groups, matches[i:end])
+		}
+		return groups
+	},
 }
 
 var pageFiles = map[string]string{

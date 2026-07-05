@@ -158,6 +158,80 @@ func TestMetricsEndpoint_ExposesExpectedSeries(t *testing.T) {
 	}
 }
 
+func TestKnockoutPage_ContainsGraphicalBracket(t *testing.T) {
+	router := newTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/knockout", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !containsAll(body, "Bracket", "bracket-match", "Round of 32", "Match Details") {
+		t.Errorf("knockout page missing expected bracket content: %s", body)
+	}
+	// "Match for third place" is a standalone fixture (not part of the
+	// single-elimination tree): it must appear in the standalone
+	// .bracket-third-place block and in the "Match Details" tables below,
+	// but never as one of the bracket's round columns.
+	if !strings.Contains(body, "bracket-third-place") {
+		t.Fatal(`body missing "bracket-third-place" block for the third-place match`)
+	}
+	if got := strings.Count(body, "Match for third place"); got != 2 {
+		t.Errorf(`body contains "Match for third place" %d times, want exactly 2 (bracket-third-place box + Match Details heading)`, got)
+	}
+}
+
+func TestMatchesPage_FiltersByQueryParams(t *testing.T) {
+	router := newTestRouter(t)
+
+	allReq := httptest.NewRequest(http.MethodGet, "/matches", nil)
+	allRec := httptest.NewRecorder()
+	router.ServeHTTP(allRec, allReq)
+	if allRec.Code != http.StatusOK {
+		t.Fatalf("GET /matches: status = %d, want 200", allRec.Code)
+	}
+
+	filteredReq := httptest.NewRequest(http.MethodGet, "/matches?team=Mexico", nil)
+	filteredRec := httptest.NewRecorder()
+	router.ServeHTTP(filteredRec, filteredReq)
+	if filteredRec.Code != http.StatusOK {
+		t.Fatalf("GET /matches?team=Mexico: status = %d, want 200", filteredRec.Code)
+	}
+
+	allBody := allRec.Body.String()
+	filteredBody := filteredRec.Body.String()
+	if len(filteredBody) >= len(allBody) {
+		t.Errorf("expected the filtered page (team=Mexico) to be smaller than the unfiltered page")
+	}
+	if !strings.Contains(filteredBody, `value="Mexico" selected`) {
+		t.Errorf("expected the Mexico <option> to be marked selected in the filter form")
+	}
+	if !containsAll(filteredBody, "Showing", "of", "matches.") {
+		t.Errorf("expected filtered page to show a \"Showing X of Y matches\" summary: %s", filteredBody)
+	}
+}
+
+func TestMatchesPage_ClearFiltersLinkOnlyShownWhenFiltering(t *testing.T) {
+	router := newTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/matches", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if strings.Contains(rec.Body.String(), "Clear filters") {
+		t.Error("unfiltered /matches should not show a Clear filters link")
+	}
+
+	filteredReq := httptest.NewRequest(http.MethodGet, "/matches?round=Final", nil)
+	filteredRec := httptest.NewRecorder()
+	router.ServeHTTP(filteredRec, filteredReq)
+	if !strings.Contains(filteredRec.Body.String(), "Clear filters") {
+		t.Error("filtered /matches should show a Clear filters link")
+	}
+}
+
 func TestStaticAssets_AreServed(t *testing.T) {
 	router := newTestRouter(t)
 

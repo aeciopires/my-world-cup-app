@@ -4,7 +4,61 @@
   <p class="muted">Round of 32 through the Final. Matches without a result yet are marked "scheduled".</p>
 </section>
 
+{{if .BracketRounds}}
+<section class="card">
+  <h2>Bracket</h2>
+  <div class="bracket-wrap">
+    <div class="bracket">
+      {{range .BracketRounds}}
+      <div class="bracket-round">
+        <h3 class="bracket-round-title">{{.Name}}</h3>
+        <div class="bracket-round-matches">
+          {{range pairs .Matches}}
+          <div class="bracket-pair{{if eq (len .) 1}} bracket-pair-single{{end}}">
+            {{range .}}
+            <div class="bracket-match">
+              <div class="bracket-team{{if and .FullTime (eq .Winner .Team1)}} winner{{end}}">
+                <span class="bracket-team-name">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span>
+                <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Home}}{{else}}–{{end}}</span>
+              </div>
+              <div class="bracket-team{{if and .FullTime (eq .Winner .Team2)}} winner{{end}}">
+                <span class="bracket-team-name">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span>
+                <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Away}}{{else}}–{{end}}</span>
+              </div>
+              {{if .Penalties}}<div class="bracket-pens">pens {{.Penalties.Home}}-{{.Penalties.Away}}</div>{{end}}
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+
+  {{if .ThirdPlace}}
+  <div class="bracket-third-place">
+    <h3 class="bracket-round-title">{{.ThirdPlace.Name}}</h3>
+    {{range .ThirdPlace.Matches}}
+    <div class="bracket-match">
+      <div class="bracket-team{{if and .FullTime (eq .Winner .Team1)}} winner{{end}}">
+        <span class="bracket-team-name">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span>
+        <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Home}}{{else}}–{{end}}</span>
+      </div>
+      <div class="bracket-team{{if and .FullTime (eq .Winner .Team2)}} winner{{end}}">
+        <span class="bracket-team-name">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span>
+        <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Away}}{{else}}–{{end}}</span>
+      </div>
+      {{if .Penalties}}<div class="bracket-pens">pens {{.Penalties.Home}}-{{.Penalties.Away}}</div>{{end}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</section>
+{{end}}
+
 {{if .Rounds}}
+<h2 class="section-title">Match Details</h2>
 <div class="knockout-rounds">
   {{range .Rounds}}
   <section class="card">
