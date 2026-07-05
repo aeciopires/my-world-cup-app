@@ -17,8 +17,8 @@
         <tr>
           <td>{{.Date}}</td>
           <td>{{.Round}}</td>
-          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{.Team1}}</span> vs <span class="team">{{index $.Flags .Team2}} {{.Team2}}</span></td>
-          <td>{{.Ground}}</td>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> vs <span class="team">{{index $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
+          <td>{{linked $.StadiumLinks .Ground}}</td>
         </tr>
         {{end}}
       </tbody>
@@ -40,7 +40,7 @@
         <tr>
           <td>{{.Date}}</td>
           <td>{{.Round}}</td>
-          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{.Team1}}</span> {{.FullTime.Home}} - {{.FullTime.Away}} <span class="team">{{index $.Flags .Team2}} {{.Team2}}</span></td>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> {{.FullTime.Home}} - {{.FullTime.Away}} <span class="team">{{index $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
         </tr>
         {{end}}
       </tbody>

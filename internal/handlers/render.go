@@ -20,6 +20,12 @@ type Renderer struct {
 
 var templateFuncs = template.FuncMap{
 	"inc": func(i int) int { return i + 1 },
+	"linked": func(links map[string]string, name string) template.HTML {
+		if url, ok := links[name]; ok && url != "" {
+			return template.HTML(`<a href="` + template.HTMLEscapeString(url) + `" target="_blank" rel="noopener noreferrer">` + template.HTMLEscapeString(name) + `</a>`)
+		}
+		return template.HTML(template.HTMLEscapeString(name))
+	},
 }
 
 var pageFiles = map[string]string{
@@ -55,11 +61,14 @@ func trimWebPrefix(path string) string {
 // baseData is embedded by every page's template data to supply the fields
 // used by the shared layout.
 type baseData struct {
-	PageTitle   string
-	ActiveNav   string
-	LastUpdated string
-	DataSource  string
-	Flags       map[string]string
+	PageTitle    string
+	ActiveNav    string
+	LastUpdated  string
+	DataSource   string
+	Flags        map[string]string
+	TeamLinks    map[string]string
+	StadiumLinks map[string]string
+	CityLinks    map[string]string
 }
 
 func newBaseData(store *data.Store, title, active string) baseData {
@@ -69,11 +78,14 @@ func newBaseData(store *data.Store, title, active string) baseData {
 		formatted = lastUpdated.Format(time.RFC1123)
 	}
 	return baseData{
-		PageTitle:   title,
-		ActiveNav:   active,
-		LastUpdated: formatted,
-		DataSource:  source,
-		Flags:       teamFlags(tournament),
+		PageTitle:    title,
+		ActiveNav:    active,
+		LastUpdated:  formatted,
+		DataSource:   source,
+		Flags:        teamFlags(tournament),
+		TeamLinks:    teamLinks(tournament),
+		StadiumLinks: stadiumLinks(tournament),
+		CityLinks:    cityLinks(tournament),
 	}
 }
 

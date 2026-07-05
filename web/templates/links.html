@@ -23,8 +23,8 @@
     <tbody>
       {{range .Stadiums}}
       <tr>
-        <td>{{.Name}}</td>
-        <td>{{.City}}</td>
+        <td>{{linked $.StadiumLinks .Name}}</td>
+        <td>{{linked $.CityLinks .City}}</td>
         <td>{{.Country}}</td>
         <td>{{.Capacity}}</td>
       </tr>

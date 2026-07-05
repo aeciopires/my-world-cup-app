@@ -16,7 +16,7 @@
         <tr>
           <td>{{inc $i}}</td>
           <td>{{$s.Name}}</td>
-          <td class="team-cell"><span class="team">{{index $.Flags $s.Team}} {{$s.Team}}</span></td>
+          <td class="team-cell"><span class="team">{{index $.Flags $s.Team}} {{linked $.TeamLinks $s.Team}}</span></td>
           <td><strong>{{$s.Goals}}</strong></td>
         </tr>
         {{end}}
@@ -41,7 +41,7 @@
       <tbody>
         {{range .TeamStandings}}
         <tr>
-          <td class="team-cell"><span class="team">{{index $.Flags .Team}} {{.Team}}</span></td>
+          <td class="team-cell"><span class="team">{{index $.Flags .Team}} {{linked $.TeamLinks .Team}}</span></td>
           <td>{{.Played}}</td>
           <td>{{.Won}}</td>
           <td>{{.Drawn}}</td>
