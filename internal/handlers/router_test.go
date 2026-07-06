@@ -59,6 +59,26 @@ func TestHomePage_ContainsTournamentContent(t *testing.T) {
 	}
 }
 
+func TestHomePage_UsesFullWidthCardLayout(t *testing.T) {
+	router := newTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	// Regression guard for the .home-grid single-column layout (see
+	// web/static/css/style.css): Upcoming Matches and Recent Results must
+	// NOT share the side-by-side .grid-2 used elsewhere (e.g. /stats),
+	// since that caps each card at ~538px and wraps venue names.
+	if !strings.Contains(body, `class="home-grid"`) {
+		t.Errorf("home page should use the full-width .home-grid layout, not .grid-2: %s", body)
+	}
+	if strings.Contains(body, `class="grid-2"`) {
+		t.Errorf("home page should not use the side-by-side .grid-2 layout: %s", body)
+	}
+}
+
 func TestLinksPage_ContainsAllFIFALinks(t *testing.T) {
 	router := newTestRouter(t)
 
@@ -95,6 +115,23 @@ func TestGroupsPage_ContainsStandingsHeaders(t *testing.T) {
 	body := rec.Body.String()
 	if !containsAll(body, "Group A", "Pts", "GD") {
 		t.Errorf("groups page missing expected standings content: %s", body)
+	}
+}
+
+func TestGroupsPage_ContainsExpandCollapseAllButton(t *testing.T) {
+	router := newTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/groups", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	// The button itself only toggles the .group-matches <details> elements
+	// via web/static/js/app.js (initGroupMatchesToggle) — there's no server
+	// round trip to assert on here, so this just locks the markup contract
+	// (id, initial label/state) that the script depends on.
+	if !containsAll(body, `id="toggle-all-matches"`, `aria-expanded="false"`, "Expand all matches", `class="group-matches"`) {
+		t.Errorf("groups page missing expand/collapse-all button or group-matches details: %s", body)
 	}
 }
 
@@ -182,6 +219,23 @@ func TestKnockoutPage_ContainsGraphicalBracket(t *testing.T) {
 	}
 	if got := strings.Count(body, "Match for third place"); got != 2 {
 		t.Errorf(`body contains "Match for third place" %d times, want exactly 2 (bracket-third-place box + Match Details heading)`, got)
+	}
+}
+
+func TestMatchesPage_VenueLinksToHostCityNotStadium(t *testing.T) {
+	router := newTestRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/matches", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	// The openfootball fallback fixture's models.Match.Ground carries the
+	// host city ("Mexico City"), not the stadium name ("Estadio Azteca") -
+	// see internal/handlers/render.go. Linking .Ground through StadiumLinks
+	// (keyed by stadium name) silently never matches; it must resolve
+	// through CityLinks instead.
+	if !strings.Contains(rec.Body.String(), "canadamexicousa2026/mexico/mexico-city") {
+		t.Errorf("expected a host-city FIFA link for the Mexico City venue: %s", rec.Body.String())
 	}
 }
 

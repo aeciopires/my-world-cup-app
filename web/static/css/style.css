@@ -153,6 +153,14 @@ a {
   cursor: wait;
 }
 
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 main.container {
   padding-top: 1.5rem;
   padding-bottom: 3rem;
@@ -175,6 +183,10 @@ main.container {
   padding: 1.25rem;
   margin-bottom: 1.5rem;
   box-shadow: var(--shadow-sm);
+  /* Grid items default to a content-based min-width, which lets a wide
+     table blow out its track (and the page) instead of triggering the
+     inner .table-responsive scrollbar. Cards must be free to shrink. */
+  min-width: 0;
 }
 
 .grid-2 {
@@ -183,9 +195,28 @@ main.container {
   gap: 1.5rem;
 }
 
+.home-grid {
+  display: grid;
+  /* Unlike .grid-2 (still a side-by-side split elsewhere, e.g. the Stats
+     page), the home page's Upcoming Matches / Recent Results cards get a
+     full-width single column: a "1fr 1fr" split caps each card at ~538px
+     even at the 1100px container max-width, which isn't enough room to
+     keep longer venue names (e.g. "Los Angeles (Inglewood)") on one line
+     at any resolution. */
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
 .group-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  /* Wide enough for the 9-column standings table to render without its own
+     horizontal scrollbar once .standings-table padding is tightened below.
+     min(460px, 100%) keeps that floor from overflowing the page on
+     viewports narrower than 460px: auto-fill only reduces column *count*,
+     never the minmax minimum itself, so an un-capped 460px would still
+     force a 460px-wide single column (and page-wide horizontal scroll) on
+     any phone screen. */
+  grid-template-columns: repeat(auto-fill, minmax(min(460px, 100%), 1fr));
   gap: 1.5rem;
 }
 
@@ -203,7 +234,11 @@ main.container {
 
 .table {
   width: 100%;
-  min-width: max-content;
+  /* No min-width: max-content here on purpose: that would force every
+     column to its unwrapped natural width and defeat the overflow-wrap
+     rule below, turning "shrink to fit" into "always scroll". Letting the
+     table size to its container lets long cell content wrap onto a second
+     line instead of forcing .table-responsive's scrollbar. */
   border-collapse: collapse;
   font-size: 0.9rem;
   table-layout: auto;
@@ -281,11 +316,20 @@ main.container {
 .standings-table th,
 .standings-table td {
   text-align: center;
+  padding: 0.5rem 0.45rem;
 }
 
 .standings-table td:first-child,
 .standings-table th:first-child {
   text-align: left;
+}
+
+/* Short, fixed-format values (dates, round names, group names) would
+   otherwise get squeezed and broken mid-word by the table's shrink-to-fit
+   layout on narrow screens; keep them on one line and let the genuinely
+   variable-width columns (team names, venues) absorb the wrapping instead. */
+.nowrap-cell {
+  white-space: nowrap;
 }
 
 .quick-links {
@@ -470,11 +514,79 @@ main.container {
 }
 
 @media (max-width: 720px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
   .header-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* Below this width a table's own column layout can no longer fit a full
+   team name plus every stat/date/venue column side by side, even after
+   wrapping/padding tweaks. .standings-table (group tables) and
+   .matches-table (fixture lists on the home/matches/groups pages) restack
+   each row as one team-first block with the remaining fields shown as
+   compact "label: value" chips below it, instead of scrolling sideways. */
+@media (max-width: 640px) {
+  .standings-table thead,
+  .matches-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+    padding: 0;
+    margin: -1px;
+  }
+
+  .standings-table,
+  .standings-table tbody,
+  .standings-table tr,
+  .standings-table td,
+  .matches-table,
+  .matches-table tbody,
+  .matches-table tr,
+  .matches-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .standings-table tr,
+  .matches-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 0.9rem;
+    row-gap: 0.3rem;
+    padding: 0.6rem 0.1rem;
+  }
+
+  .standings-table td,
+  .matches-table td {
+    width: auto;
+    padding: 0;
+    border-bottom: none;
+    text-align: left;
+  }
+
+  .standings-table td.team-cell,
+  .matches-table td.team-cell {
+    flex: 1 1 100%;
+  }
+
+  /* Fixture rows show the team-cell first regardless of its column order
+     in the underlying table (e.g. matches.html has Date/Round/Group before
+     it), so the matchup reads as the row's heading. */
+  .matches-table td.team-cell {
+    order: -1;
+    font-weight: 600;
+  }
+
+  .standings-table td:not(.team-cell)::before,
+  .matches-table td:not(.team-cell)::before {
+    content: attr(data-label) " ";
+    color: var(--text-muted);
+    font-size: 0.75rem;
   }
 }

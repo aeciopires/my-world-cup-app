@@ -1,10 +1,47 @@
+<!-- TOC -->
+
+- [Changelog](#changelog)
+  - [1.2.0 - 2026-07-06](#120---2026-07-06)
+    - [Added](#added)
+    - [Changed](#changed)
+    - [Fixed](#fixed)
+  - [1.1.0 - 2026-07-05](#110---2026-07-05)
+    - [Added](#added-1)
+    - [Changed](#changed-1)
+    - [Fixed](#fixed-1)
+  - [1.0.0 - 2026-06-30](#100---2026-06-30)
+    - [Added](#added-2)
+    - [Planned / Future Improvements](#planned--future-improvements)
+
+<!-- TOC -->
+
 # Changelog
 
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.1.0] - 2026-07-05
+## 1.2.0 - 2026-07-06
+
+### Added
+
+- "Expand all matches" / "Collapse all matches" button on the Groups page (`#toggle-all-matches` in `web/templates/groups.html`, wired up by `initGroupMatchesToggle` in `web/static/js/app.js`) toggles every group's match-results `<details class="group-matches">` at once instead of requiring one click per group.
+
+### Changed
+
+- Home page's Upcoming Matches / Recent Results cards moved from a side-by-side `.grid-2` layout (each card capped at ~538px even on wide desktops) to a new full-width `.home-grid` single column, so venue names have room to stay on one line at common desktop resolutions.
+
+### Fixed
+
+- Match venues (home page, `/matches`) now link to the official fifa.com **host-city** page instead of a stadium-name lookup that never matched: `models.Match.Ground` carries the host city (e.g. "Mexico City"), not the stadium name ("Estadio Azteca"), so rendering switched from `StadiumLinks` to `CityLinks` (`internal/handlers/render.go`, `web/templates/home.html`, `web/templates/matches.html`).
+- Reworked responsive layout across the Groups, Home, and Matches pages so tables and cards fit without a horizontal scrollbar at common phone/tablet/desktop widths:
+  - `.card` now sets `min-width: 0` so a wide table can no longer blow out its CSS grid track (and the whole page) instead of scrolling within its own card — grid items default to a content-based minimum width, not `0`.
+  - `.group-grid` sizes cards with `minmax(min(460px, 100%), 1fr)` instead of a bare `minmax(460px, 1fr)`: `auto-fill`/`auto-fit` only ever reduce column *count*, never the `minmax` minimum, so the un-capped version still forced a 460px-wide column (and page-wide horizontal scroll) on any phone screen.
+  - `.table` no longer forces `min-width: max-content`, which was defeating the existing `overflow-wrap`/`word-break` rules and always triggering `.table-responsive`'s scrollbar instead of letting long cell content wrap.
+  - New `.nowrap-cell` utility keeps short fixed-format values (dates, round, group) from wrapping character-by-character once table columns are free to shrink.
+  - `.standings-table` (group tables) and the new `.matches-table` (fixture-list tables on the home, `/matches`, and group match-detail views) restack into team-first blocks with labeled fields below 640px instead of scrolling sideways, using new `data-label` attributes on the affected table cells.
+
+## 1.1.0 - 2026-07-05
 
 ### Added
 
@@ -24,7 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `models.Match.Winner()` now accounts for a penalty shoot-out when full time ends level, so knockout draws decided on penalties correctly report a winner (previously only the full-time score was checked). This backs the new bracket's winner highlighting.
 
-## [1.0.0] - 2026-06-30
+## 1.0.0 - 2026-06-30
 
 ### Added
 

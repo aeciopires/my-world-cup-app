@@ -42,10 +42,33 @@
     });
   }
 
+  // On the Groups page, each group's match results sit behind its own
+  // <details class="group-matches">; this lets one button open or close all
+  // of them at once instead of clicking every group individually.
+  function initGroupMatchesToggle() {
+    var btn = document.getElementById("toggle-all-matches");
+    if (!btn) return;
+    var detailsList = document.querySelectorAll(".group-matches");
+    if (!detailsList.length) return;
+
+    function setExpanded(expand) {
+      detailsList.forEach(function (details) {
+        details.open = expand;
+      });
+      btn.setAttribute("aria-expanded", String(expand));
+      btn.textContent = expand ? "Collapse all matches" : "Expand all matches";
+    }
+
+    btn.addEventListener("click", function () {
+      setExpanded(btn.getAttribute("aria-expanded") !== "true");
+    });
+  }
+
   initTheme();
   document.addEventListener("DOMContentLoaded", function () {
     var toggle = document.getElementById("theme-toggle");
     if (toggle) toggle.addEventListener("click", toggleTheme);
     initRefresh();
+    initGroupMatchesToggle();
   });
 })();
