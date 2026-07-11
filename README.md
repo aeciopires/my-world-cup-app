@@ -90,7 +90,7 @@ A lightweight Go web application that displays the FIFA World Cup 2026 (Canada/M
 ## Technology Stack
 
 - [Go](https://go.dev/) 1.25 — standard library for the web layer (`net/http`, `html/template`, `encoding/json`, `embed`); no web framework.
-- [prometheus/client_golang](https://github.com/prometheus/client_golang) — the only third-party dependency, used solely for `/metrics` instrumentation (`internal/metrics`).
+- [prometheus/client_golang](https://github.com/prometheus/client_golang) — the only third-party dependency, used solely for `/metrics` instrumentation (`app/internal/metrics`).
 - Vanilla CSS (custom properties for theming) and vanilla JavaScript (no build step, no client framework).
 - Docker / Docker Compose for containerized runs; a Helm chart for Kubernetes deployment.
 - `go test` for unit and integration tests.
@@ -100,15 +100,15 @@ A lightweight Go web application that displays the FIFA World Cup 2026 (Canada/M
 The application follows a clean, layered architecture:
 
 ```
-cmd/server        entrypoint: wiring, HTTP server lifecycle
-internal/config    environment-driven configuration
-internal/models    domain types (Team, Group, Match, Stadium, Standing, Tournament)
-internal/data      HTTP client, JSON parsing/normalization, thread-safe in-memory store
-internal/services  business logic: group standings, knockout grouping, match/stats queries
-internal/handlers  HTTP handlers, routing, template rendering
-internal/metrics   Prometheus instrumentation (HTTP requests, data refresh outcomes)
-web/               embedded HTML templates and static assets (CSS/JS)
-charts/            Helm chart for Kubernetes deployment
+app/cmd/server        entrypoint: wiring, HTTP server lifecycle
+app/internal/config    environment-driven configuration
+app/internal/models    domain types (Team, Group, Match, Stadium, Standing, Tournament)
+app/internal/data      HTTP client, JSON parsing/normalization, thread-safe in-memory store
+app/internal/services  business logic: group standings, knockout grouping, match/stats queries
+app/internal/handlers  HTTP handlers, routing, template rendering
+app/internal/metrics   Prometheus instrumentation (HTTP requests, data refresh outcomes)
+app/web/               embedded HTML templates and static assets (CSS/JS)
+helm/                   Helm chart for Kubernetes deployment
 ```
 
 - **Handlers** depend on **services** and the **data store**, never the other way around.
@@ -171,29 +171,31 @@ flowchart TD
 
 ```
 my-world-cup-app/
-├── cmd/server/main.go
-├── internal/
-│   ├── config/
-│   ├── models/
-│   ├── data/
-│   │   ├── client.go
-│   │   ├── fallback.go
-│   │   ├── fallback/            # embedded snapshot JSON (openfootball 2026 data)
-│   │   ├── parser.go
-│   │   └── store.go
-│   ├── services/                # standings, knockout, matches, stats
-│   ├── handlers/
-│   └── metrics/                  # Prometheus counters/histograms
-├── web/
-│   ├── assets.go                # go:embed directives
-│   ├── templates/
-│   └── static/{css,js}/
-├── charts/my-world-cup-app/      # Helm chart
+├── app/                          # Go module root — all application source
+│   ├── cmd/server/main.go
+│   ├── internal/
+│   │   ├── config/
+│   │   ├── models/
+│   │   ├── data/
+│   │   │   ├── client.go
+│   │   │   ├── fallback.go
+│   │   │   ├── fallback/        # embedded snapshot JSON (openfootball 2026 data)
+│   │   │   ├── parser.go
+│   │   │   └── store.go
+│   │   ├── services/            # standings, knockout, matches, stats
+│   │   ├── handlers/
+│   │   └── metrics/              # Prometheus counters/histograms
+│   ├── web/
+│   │   ├── assets.go            # go:embed directives
+│   │   ├── templates/
+│   │   └── static/{css,js}/
+│   ├── go.mod
+│   └── go.sum
+├── helm/my-world-cup-app/      # Helm chart
 ├── Dockerfile
 ├── docker-compose.yml
 ├── Makefile
 ├── VERSION                       # release version; see make helm-sync-version / docker-push
-├── go.mod
 ├── README.md
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
@@ -213,7 +215,8 @@ my-world-cup-app/
 | [Docker Compose](https://docs.docker.com/compose/install/) | v2 (plugin)      | Local containerized run (`docker compose`) |
 | [Docker Buildx](https://docs.docker.com/build/architecture/#buildx) | v0.10+   | Multi-arch image builds/push (`make docker-build-multiarch`, `make docker-push`) — bundled with Docker Desktop and recent Docker Engine installs |
 | [Helm](https://helm.sh/docs/intro/install/)                 | 3.x              | Installing/linting the Helm chart       |
-| [helm-docs](https://github.com/norwoodj/helm-docs#installation) | 1.x        | Regenerating `charts/my-world-cup-app/README.md` |
+| [helm-docs](https://github.com/norwoodj/helm-docs#installation) | 1.x        | Regenerating `helm/my-world-cup-app/README.md` |
+| [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) | v0.20+  | Loading the local image into a local kind cluster (`make kind-load`) |
 
 Run `make check-deps` to verify which of these are installed on your machine; it prints installation instructions for anything missing.
 
@@ -243,9 +246,10 @@ Run `make help` (or just `make`, since `help` is the default goal) to print this
 | `make docker-buildx-setup` | Create (or reuse) the Docker Buildx builder used for multi-arch images   |
 | `make docker-build-multiarch` | Build a multi-arch image (linux/amd64 + linux/arm64, runs on Linux and macOS/Intel+Apple Silicon) without pushing, to validate the build for both platforms |
 | `make docker-push`     | Build and push a multi-arch image (linux/amd64 + linux/arm64); interactively prompts for registry username, password/token, and repository name |
-| `make helm-sync-version` | Write the `VERSION` file's version into the Helm chart's `appVersion` (`charts/my-world-cup-app/Chart.yaml`) |
+| `make kind-load`       | Load the local Docker image into the kind cluster (`KIND_CLUSTER`, default `kind-multinodes`) |
+| `make helm-sync-version` | Write the `VERSION` file's version into the Helm chart's `appVersion` (`helm/my-world-cup-app/Chart.yaml`) |
 | `make helm-lint`       | Lint the Helm chart                                                          |
-| `make helm-docs`       | Sync `appVersion` from `VERSION`, then regenerate the Helm chart README (`charts/*/README.md`) via helm-docs |
+| `make helm-docs`       | Sync `appVersion` from `VERSION`, then regenerate the Helm chart README (`helm/*/README.md`) via helm-docs |
 | `make helm-install`    | Install/upgrade the app into Kubernetes via Helm (namespace: `NAMESPACE`, default app name) |
 | `make helm-uninstall`  | Uninstall the Helm release from Kubernetes                                   |
 | `make clean`           | Remove build artifacts                                                       |
@@ -255,7 +259,7 @@ Run `make help` (or just `make`, since `help` is the default goal) to print this
 ```bash
 make run
 # or
-PORT=8080 go run ./cmd/server
+PORT=8080 go -C app run ./cmd/server
 ```
 
 Then open http://localhost:8080.
@@ -300,25 +304,36 @@ make docker-push               # build + push a multi-arch manifest to a registr
 3. **Repository name**, e.g. `docker.io/<user>/my-world-cup-app` or `ghcr.io/<user>/my-world-cup-app` (the registry host is inferred from this to log in against the right registry; omit a host to default to Docker Hub)
 4. **Image tag** (defaults to the version in the root [`VERSION`](VERSION) file if left blank)
 
-`make docker-push` also runs `make helm-sync-version` first, so `charts/my-world-cup-app/Chart.yaml`'s `appVersion` always matches the `VERSION` file before an image is published. Override the target platform list with `DOCKER_PLATFORMS` (default `linux/amd64,linux/arm64`), e.g. `make docker-push DOCKER_PLATFORMS=linux/amd64`.
+`make docker-push` also runs `make helm-sync-version` first, so `helm/my-world-cup-app/Chart.yaml`'s `appVersion` always matches the `VERSION` file before an image is published. Override the target platform list with `DOCKER_PLATFORMS` (default `linux/amd64,linux/arm64`), e.g. `make docker-push DOCKER_PLATFORMS=linux/amd64`.
 
 Every image is also labeled `org.opencontainers.image.version` with the tag actually used (`docker inspect <image> --format '{{.Config.Labels}}'` to check), baked in via the Dockerfile's `APP_VERSION` build-arg.
 
 ### Run with Helm
 
-A Helm chart is provided at `charts/my-world-cup-app` for Kubernetes deployment:
+A Helm chart is provided at `helm/my-world-cup-app` for Kubernetes deployment:
 
 ```bash
-helm lint charts/my-world-cup-app
-helm template my-world-cup-app charts/my-world-cup-app   # render manifests locally
-helm install my-world-cup-app charts/my-world-cup-app --set image.repository=<your-registry>/my-world-cup-app --set image.tag=<tag>
+helm lint helm/my-world-cup-app
+helm template my-world-cup-app helm/my-world-cup-app   # render manifests locally
+helm install my-world-cup-app helm/my-world-cup-app --set image.repository=<your-registry>/my-world-cup-app --set image.tag=<tag>
 ```
 
 The chart deploys a single `Deployment` + `Service` (ClusterIP by default), wires `/healthz` as the liveness/readiness probe, and pre-populates `prometheus.io/scrape`, `prometheus.io/port`, and `prometheus.io/path` pod annotations so a cluster Prometheus can auto-discover `/metrics`. Ingress and HPA are included but disabled by default (`ingress.enabled` / `autoscaling.enabled` in `values.yaml`).
 
+#### Deploying to a local kind cluster
+
+Since a local kind cluster can't pull an image that only exists in your local Docker daemon, load it in first:
+
+```bash
+make kind-load                 # docker-build, then `kind load docker-image` into KIND_CLUSTER (default kind-multinodes)
+make helm-install               # installs/upgrades using the image tagged with the VERSION file's version
+```
+
+Override the target cluster with `make kind-load KIND_CLUSTER=<cluster-name>` if yours isn't named `kind-multinodes`.
+
 ### Configuration
 
-All configuration is via environment variables (see `internal/config/config.go`). There are no required variables — every one of them has a working default.
+All configuration is via environment variables (see `app/internal/config/config.go`). There are no required variables — every one of them has a working default.
 
 | Variable                | Default                                            | Description                |
 |--------------------------|-----------------------------------------------------|------------------------------|
@@ -341,7 +356,7 @@ Group tables (and the overall team statistics on `/stats`) are computed from pla
 
 ## Metrics
 
-`/metrics` exposes a dedicated Prometheus registry (`internal/metrics`), not the global default one:
+`/metrics` exposes a dedicated Prometheus registry (`app/internal/metrics`), not the global default one:
 
 - `http_requests_total{method,path,status}` — request counts, `status` bucketed as `2xx`/`3xx`/`4xx`/`5xx`.
 - `http_request_duration_seconds{method,path}` — request latency histogram.
@@ -350,9 +365,9 @@ Group tables (and the overall team statistics on `/stats`) are computed from pla
 
 ## Testing
 
-- `internal/data`: JSON parsing/normalization tests, plus store tests covering successful refresh, failed refresh (previous snapshot retained), and fallback seeding.
-- `internal/services`: standings, knockout grouping, top-scorer, and team-statistics computation tests with known inputs/expected outputs.
-- `internal/handlers`: HTTP integration tests (`httptest`) covering every route (including `/stats` and `/metrics`), static asset serving, and refresh failure handling.
+- `app/internal/data`: JSON parsing/normalization tests, plus store tests covering successful refresh, failed refresh (previous snapshot retained), and fallback seeding.
+- `app/internal/services`: standings, knockout grouping, top-scorer, and team-statistics computation tests with known inputs/expected outputs.
+- `app/internal/handlers`: HTTP integration tests (`httptest`) covering every route (including `/stats` and `/metrics`), static asset serving, and refresh failure handling.
 
 ## Contributing
 

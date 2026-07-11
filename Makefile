@@ -2,10 +2,12 @@
 SHELL := /bin/bash
 
 APP_NAME := my-world-cup-app
+APP_DIR := app
 BIN_DIR := bin
-CHART_DIR := charts/$(APP_NAME)
+CHART_DIR := helm/$(APP_NAME)
 PORT ?= 8080
 NAMESPACE ?= $(APP_NAME)
+KIND_CLUSTER ?= kind-multinodes
 # The single source of truth for the app's release version — bump this file
 # (see CONTRIBUTING.md) to change the Docker image tag built/pushed below
 # and the value `make helm-sync-version` writes into the Helm chart's
@@ -37,6 +39,7 @@ check-deps: ## Verify required development/runtime tools are installed
 	check docker "https://docs.docker.com/get-docker/"; \
 	check helm "https://helm.sh/docs/intro/install/"; \
 	check helm-docs "https://github.com/norwoodj/helm-docs#installation"; \
+	check kind "https://kind.sigs.k8s.io/docs/user/quick-start/#installation"; \
 	if docker compose version >/dev/null 2>&1; then \
 		printf "  [OK]      %-15s %s\n" "docker compose" "$$(docker compose version --short 2>/dev/null)"; \
 	else \
@@ -58,37 +61,37 @@ check-deps: ## Verify required development/runtime tools are installed
 
 .PHONY: run
 run: ## Run the application locally
-	PORT=$(PORT) go run ./cmd/server
+	PORT=$(PORT) go -C $(APP_DIR) run ./cmd/server
 
 .PHONY: build
 build: ## Build the server binary into bin/
 	mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o $(BIN_DIR)/$(APP_NAME) ./cmd/server
+	CGO_ENABLED=0 go -C $(APP_DIR) build -trimpath -ldflags="-s -w" -o $(CURDIR)/$(BIN_DIR)/$(APP_NAME) ./cmd/server
 
 .PHONY: test
 test: ## Run all tests
-	go test ./... -v
+	go -C $(APP_DIR) test ./... -v
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report
-	go test ./... -cover -coverprofile=coverage.out
-	go tool cover -func=coverage.out
+	go -C $(APP_DIR) test ./... -cover -coverprofile=$(CURDIR)/coverage.out
+	go tool cover -func=$(CURDIR)/coverage.out
 
 .PHONY: fmt
 fmt: ## Format source code
-	gofmt -w .
+	gofmt -w $(APP_DIR)
 
 .PHONY: fmt-check
 fmt-check: ## Check source code formatting
-	@test -z "$$(gofmt -l .)" || (echo "Unformatted files:"; gofmt -l .; exit 1)
+	@test -z "$$(gofmt -l $(APP_DIR))" || (echo "Unformatted files:"; gofmt -l $(APP_DIR); exit 1)
 
 .PHONY: vet
 vet: ## Run go vet
-	go vet ./...
+	go -C $(APP_DIR) vet ./...
 
 .PHONY: tidy
 tidy: ## Tidy go.mod/go.sum
-	go mod tidy
+	go -C $(APP_DIR) mod tidy
 
 .PHONY: check
 check: fmt-check vet test ## Run formatting, vet, and tests
@@ -139,7 +142,7 @@ docker-push: docker-buildx-setup helm-sync-version ## Build and push a multi-arc
 	docker buildx build --builder $(BUILDX_BUILDER) --platform $(DOCKER_PLATFORMS) --build-arg APP_VERSION=$$TAG -t "$$DOCKER_REPO:$$TAG" --push .
 
 .PHONY: helm-sync-version
-helm-sync-version: ## Write the VERSION file's version into the Helm chart's appVersion (charts/my-world-cup-app/Chart.yaml)
+helm-sync-version: ## Write the VERSION file's version into the Helm chart's appVersion (helm/my-world-cup-app/Chart.yaml)
 	@sed -i.bak "s/^appVersion:.*/appVersion: \"$(APP_VERSION)\"/" $(CHART_DIR)/Chart.yaml && rm -f $(CHART_DIR)/Chart.yaml.bak
 	@echo "$(CHART_DIR)/Chart.yaml appVersion set to $(APP_VERSION)"
 
@@ -148,8 +151,12 @@ helm-lint: ## Lint the Helm chart
 	helm lint $(CHART_DIR)
 
 .PHONY: helm-docs
-helm-docs: helm-sync-version ## Sync appVersion from VERSION, then regenerate the Helm chart README (charts/*/README.md) via helm-docs
-	helm-docs --chart-search-root charts
+helm-docs: helm-sync-version ## Sync appVersion from VERSION, then regenerate the Helm chart README (helm/*/README.md) via helm-docs
+	helm-docs --chart-search-root helm
+
+.PHONY: kind-load
+kind-load: docker-build ## Load the local Docker image into the kind cluster (KIND_CLUSTER, default kind-multinodes)
+	kind load docker-image $(APP_NAME):$(APP_VERSION) --name $(KIND_CLUSTER)
 
 .PHONY: helm-install
 helm-install: ## Install/upgrade the app into Kubernetes via Helm (namespace: NAMESPACE, default app name)

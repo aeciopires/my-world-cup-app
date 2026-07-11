@@ -4,10 +4,10 @@ FROM golang:1.25-alpine AS builder
 
 WORKDIR /src
 
-COPY go.mod ./
+COPY app/go.mod ./
 RUN go mod download
 
-COPY . .
+COPY app/ .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
