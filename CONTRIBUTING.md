@@ -37,6 +37,7 @@ git branch
 
 - The branch in use has a `*` before its name.
 - Make the necessary changes.
+- **If your change should ship as a new release**, bump the version in the root [`VERSION`](VERSION) file (plain semver text, e.g. `1.3.0`, no `v` prefix). It's the single source of truth for the release version: `make docker-build`, `make docker-build-multiarch`, and `make docker-push` tag the Docker image from it by default, and `make helm-sync-version` (also run automatically by `make docker-push`) writes it into `charts/my-world-cup-app/Chart.yaml`'s `appVersion`. Also add a matching entry to [`CHANGELOG.md`](CHANGELOG.md). Skip this for changes that don't warrant a new release (docs-only tweaks, CI config, etc.).
 - Check that all required tools are installed:
 
 ```bash

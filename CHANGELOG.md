@@ -1,16 +1,19 @@
 <!-- TOC -->
 
 - [Changelog](#changelog)
-  - [1.2.0 - 2026-07-06](#120---2026-07-06)
+  - [1.3.0 - 2026-07-11](#130---2026-07-11)
     - [Added](#added)
     - [Changed](#changed)
-    - [Fixed](#fixed)
-  - [1.1.0 - 2026-07-05](#110---2026-07-05)
+  - [1.2.0 - 2026-07-06](#120---2026-07-06)
     - [Added](#added-1)
     - [Changed](#changed-1)
+    - [Fixed](#fixed)
+  - [1.1.0 - 2026-07-05](#110---2026-07-05)
+    - [Added](#added-2)
+    - [Changed](#changed-2)
     - [Fixed](#fixed-1)
   - [1.0.0 - 2026-06-30](#100---2026-06-30)
-    - [Added](#added-2)
+    - [Added](#added-3)
     - [Planned / Future Improvements](#planned--future-improvements)
 
 <!-- TOC -->
@@ -20,6 +23,24 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## 1.3.0 - 2026-07-11
+
+### Added
+
+- `make docker-build-multiarch`: builds a multi-arch image (`linux/amd64` + `linux/arm64`, covering Linux and macOS on both Intel and Apple Silicon) via Docker Buildx, to validate the cross-arch build without pushing anywhere.
+- `make docker-push`: builds and pushes a multi-arch image to a registry, interactively prompting for registry username, password/access token (hidden input, piped to `docker login --password-stdin`), repository name, and image tag.
+- `make docker-buildx-setup`: creates/reuses the `docker-container`-driver Buildx builder the two targets above require (the default `docker` driver can't produce multi-platform output).
+- `docker buildx` added to `make check-deps`' tool checks.
+- Root `VERSION` file: the single source of truth for the app's release version, read by the `Makefile` into `APP_VERSION`.
+- `make helm-sync-version`: writes `VERSION`'s content into `charts/my-world-cup-app/Chart.yaml`'s `appVersion` (portable `sed -i.bak` for both GNU/Linux and BSD/macOS sed); run automatically by `make docker-push` and `make helm-docs` before every publish/docs regeneration, so `appVersion` can't go stale.
+- `Dockerfile`'s runtime stage now accepts an `APP_VERSION` build-arg (default `dev`) and sets it as the `org.opencontainers.image.version` image label.
+- `CONTRIBUTING.md` now reminds contributors to bump `VERSION` (and add a `CHANGELOG.md` entry) for release-worthy changes.
+
+### Changed
+
+- `DOCKER_TAG` now defaults to the version in the `VERSION` file instead of a hardcoded `latest`; `DOCKER_PLATFORMS` (default `linux/amd64,linux/arm64`) is also an overridable `Makefile` variable, e.g. `make docker-push DOCKER_PLATFORMS=linux/amd64`.
+- `make docker-build` / `make docker-up` (`docker compose build`/`up`) and `docker-compose.yml` now pass `APP_VERSION` through as a build-arg too, so a plain Compose-based build carries the same version label as the Buildx-based targets.
 
 ## 1.2.0 - 2026-07-06
 

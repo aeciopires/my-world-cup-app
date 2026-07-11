@@ -3,7 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: my-world-cup-app:latest
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: my-world-cup-app:${APP_VERSION:-latest}
     container_name: my-world-cup-app
     ports:
       - "${PORT:-8080}:8080"

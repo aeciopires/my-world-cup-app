@@ -192,9 +192,11 @@ my-world-cup-app/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── Makefile
+├── VERSION                       # release version; see make helm-sync-version / docker-push
 ├── go.mod
 ├── README.md
 ├── CHANGELOG.md
+├── CONTRIBUTING.md
 └── CLAUDE.md
 ```
 
@@ -209,6 +211,7 @@ my-world-cup-app/
 | [Git](https://git-scm.com/downloads)                       | any              | Cloning the repository, contributing    |
 | [Docker](https://docs.docker.com/get-docker/)               | 24+              | Building/running the container image    |
 | [Docker Compose](https://docs.docker.com/compose/install/) | v2 (plugin)      | Local containerized run (`docker compose`) |
+| [Docker Buildx](https://docs.docker.com/build/architecture/#buildx) | v0.10+   | Multi-arch image builds/push (`make docker-build-multiarch`, `make docker-push`) — bundled with Docker Desktop and recent Docker Engine installs |
 | [Helm](https://helm.sh/docs/intro/install/)                 | 3.x              | Installing/linting the Helm chart       |
 | [helm-docs](https://github.com/norwoodj/helm-docs#installation) | 1.x        | Regenerating `charts/my-world-cup-app/README.md` |
 
@@ -233,12 +236,16 @@ Run `make help` (or just `make`, since `help` is the default goal) to print this
 | `make vet`             | Run `go vet`                                                                 |
 | `make tidy`            | Tidy `go.mod`/`go.sum`                                                       |
 | `make check`           | Run formatting, vet, and tests (`fmt-check` + `vet` + `test`)                |
-| `make docker-build`    | Build the Docker image                                                       |
+| `make docker-build`    | Build the Docker image (tagged with the `VERSION` file's version)            |
 | `make docker-up`       | Start the application via Docker Compose                                     |
 | `make docker-down`     | Stop and remove the Docker Compose services                                  |
 | `make docker-logs`     | Tail the application container logs                                          |
+| `make docker-buildx-setup` | Create (or reuse) the Docker Buildx builder used for multi-arch images   |
+| `make docker-build-multiarch` | Build a multi-arch image (linux/amd64 + linux/arm64, runs on Linux and macOS/Intel+Apple Silicon) without pushing, to validate the build for both platforms |
+| `make docker-push`     | Build and push a multi-arch image (linux/amd64 + linux/arm64); interactively prompts for registry username, password/token, and repository name |
+| `make helm-sync-version` | Write the `VERSION` file's version into the Helm chart's `appVersion` (`charts/my-world-cup-app/Chart.yaml`) |
 | `make helm-lint`       | Lint the Helm chart                                                          |
-| `make helm-docs`       | Regenerate the Helm chart README (`charts/*/README.md`) via helm-docs        |
+| `make helm-docs`       | Sync `appVersion` from `VERSION`, then regenerate the Helm chart README (`charts/*/README.md`) via helm-docs |
 | `make helm-install`    | Install/upgrade the app into Kubernetes via Helm (namespace: `NAMESPACE`, default app name) |
 | `make helm-uninstall`  | Uninstall the Helm release from Kubernetes                                   |
 | `make clean`           | Remove build artifacts                                                       |
@@ -276,6 +283,26 @@ make docker-down        # stop and remove
 ```
 
 The container serves the app on `PORT` (default `8080`), mapped to the host via `docker-compose.yml`.
+
+#### Multi-arch image (linux/amd64 + linux/arm64)
+
+`Dockerfile` builds a static, CGO-free binary, so the same build works unmodified on both `linux/amd64` and `linux/arm64` — covering Linux servers and macOS (both Intel and Apple Silicon, since Docker Desktop always runs Linux containers matching the host architecture) via [Docker Buildx](https://docs.docker.com/build/architecture/#buildx):
+
+```bash
+make docker-build-multiarch    # build for linux/amd64 + linux/arm64 (validates only; multi-platform results can't be loaded into the local daemon)
+make docker-push               # build + push a multi-arch manifest to a registry
+```
+
+`make docker-push` interactively prompts for:
+
+1. **Docker registry username**
+2. **Docker registry password or access token** (hidden input, piped to `docker login --password-stdin` — never passed as a CLI argument or left in shell history)
+3. **Repository name**, e.g. `docker.io/<user>/my-world-cup-app` or `ghcr.io/<user>/my-world-cup-app` (the registry host is inferred from this to log in against the right registry; omit a host to default to Docker Hub)
+4. **Image tag** (defaults to the version in the root [`VERSION`](VERSION) file if left blank)
+
+`make docker-push` also runs `make helm-sync-version` first, so `charts/my-world-cup-app/Chart.yaml`'s `appVersion` always matches the `VERSION` file before an image is published. Override the target platform list with `DOCKER_PLATFORMS` (default `linux/amd64,linux/arm64`), e.g. `make docker-push DOCKER_PLATFORMS=linux/amd64`.
+
+Every image is also labeled `org.opencontainers.image.version` with the tag actually used (`docker inspect <image> --format '{{.Config.Labels}}'` to check), baked in via the Dockerfile's `APP_VERSION` build-arg.
 
 ### Run with Helm
 
