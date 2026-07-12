@@ -3,11 +3,6 @@
 - [My World Cup App](#my-world-cup-app)
   - [Features](#features)
   - [Screenshots](#screenshots)
-  - [Technology Stack](#technology-stack)
-  - [Architecture](#architecture)
-    - [Data flow](#data-flow)
-    - [Request routing](#request-routing)
-  - [Directory Structure](#directory-structure)
   - [Getting Started](#getting-started)
     - [Software Requirements](#software-requirements)
     - [Makefile Targets](#makefile-targets)
@@ -15,8 +10,15 @@
     - [Run tests](#run-tests)
     - [Build a binary](#build-a-binary)
     - [Run with Docker](#run-with-docker)
+      - [Multi-arch image (linux/amd64 + linux/arm64)](#multi-arch-image-linuxamd64--linuxarm64)
     - [Run with Helm](#run-with-helm)
+      - [Deploying to a local kind cluster](#deploying-to-a-local-kind-cluster)
     - [Configuration](#configuration)
+  - [Technology Stack](#technology-stack)
+  - [Architecture](#architecture)
+    - [Data flow](#data-flow)
+    - [Request routing](#request-routing)
+  - [Directory Structure](#directory-structure)
   - [Data Refresh Behavior](#data-refresh-behavior)
   - [Standings Calculation](#standings-calculation)
   - [Metrics](#metrics)
@@ -86,121 +88,6 @@ A lightweight Go web application that displays the FIFA World Cup 2026 (Canada/M
     </td>
   </tr>
 </table>
-
-## Technology Stack
-
-- [Go](https://go.dev/) 1.25 — standard library for the web layer (`net/http`, `html/template`, `encoding/json`, `embed`); no web framework.
-- [prometheus/client_golang](https://github.com/prometheus/client_golang) — the only third-party dependency, used solely for `/metrics` instrumentation (`app/internal/metrics`).
-- Vanilla CSS (custom properties for theming) and vanilla JavaScript (no build step, no client framework).
-- Docker / Docker Compose for containerized runs; a Helm chart for Kubernetes deployment.
-- `go test` for unit and integration tests.
-
-## Architecture
-
-The application follows a clean, layered architecture:
-
-```
-app/cmd/server        entrypoint: wiring, HTTP server lifecycle
-app/internal/config    environment-driven configuration
-app/internal/models    domain types (Team, Group, Match, Stadium, Standing, Tournament)
-app/internal/data      HTTP client, JSON parsing/normalization, thread-safe in-memory store
-app/internal/services  business logic: group standings, knockout grouping, match/stats queries
-app/internal/handlers  HTTP handlers, routing, template rendering
-app/internal/metrics   Prometheus instrumentation (HTTP requests, data refresh outcomes)
-app/web/               embedded HTML templates and static assets (CSS/JS)
-helm/                   Helm chart for Kubernetes deployment
-```
-
-- **Handlers** depend on **services** and the **data store**, never the other way around.
-- **Services** are pure functions operating on **models**, independent of HTTP or the data source — easy to unit test.
-- **Data** owns fetching, parsing, and caching; it exposes a `Store` with `Snapshot()` and `Refresh()`.
-- No database: the `Store` holds the current `Tournament` in memory behind a `sync.RWMutex`. Standings are recomputed from match results on every request rather than persisted.
-
-### Data flow
-
-```mermaid
-flowchart TD
-    subgraph Startup
-        A[main.go] --> B[data.NewStore]
-        B --> C[Seed from embedded fallback JSON]
-        A --> D[Background goroutine: store.Refresh]
-    end
-
-    subgraph Refresh["Data Refresh (startup or /refresh)"]
-        D --> E[data.Client.Fetch]
-        E -->|success| F[parse: JSON -> models.Tournament]
-        F --> G[Store.set: update in-memory snapshot]
-        E -->|failure| H[Keep previous snapshot, log warning]
-    end
-
-    subgraph Request["HTTP Request"]
-        I[Browser] --> J[handlers.Router]
-        J --> K[Store.Snapshot]
-        K --> L[services: GroupStandings / KnockoutStage / AllMatches / Stats]
-        L --> M[html/template render]
-        M --> I
-        J -.-> P[metrics.ObserveRequest]
-    end
-
-    subgraph UI["Update data button"]
-        N[Click 'Update data'] --> O[POST /refresh]
-        O --> E
-    end
-
-    G -.-> Q[metrics.RecordRefresh]
-    H -.-> Q
-    Q --> R["/metrics (Prometheus exposition)"]
-```
-
-### Request routing
-
-| Method | Path        | Handler              | Description                          |
-|--------|-------------|-----------------------|---------------------------------------|
-| GET    | `/`         | `pages.Home`          | Dashboard: upcoming/recent matches    |
-| GET    | `/groups`   | `pages.Groups`        | Group standings and results           |
-| GET    | `/knockout` | `pages.Knockout`      | Knockout stage bracket + round detail |
-| GET    | `/matches`  | `pages.Matches`       | Match list, filterable by `round`/`group`/`team` query params |
-| GET    | `/stats`    | `pages.Stats`         | Top scorers and team statistics       |
-| GET    | `/links`    | `pages.Links`         | Official FIFA/Spotify links, stadiums |
-| POST   | `/refresh`  | `refresh.Refresh`     | Triggers a live data refresh          |
-| GET    | `/healthz`  | `healthz`             | Health check (used by Docker/Helm)    |
-| GET    | `/metrics`  | Prometheus handler    | Prometheus metrics exposition         |
-| GET    | `/static/*` | embedded file server  | CSS/JS assets                         |
-
-## Directory Structure
-
-```
-my-world-cup-app/
-├── app/                          # Go module root — all application source
-│   ├── cmd/server/main.go
-│   ├── internal/
-│   │   ├── config/
-│   │   ├── models/
-│   │   ├── data/
-│   │   │   ├── client.go
-│   │   │   ├── fallback.go
-│   │   │   ├── fallback/        # embedded snapshot JSON (openfootball 2026 data)
-│   │   │   ├── parser.go
-│   │   │   └── store.go
-│   │   ├── services/            # standings, knockout, matches, stats
-│   │   ├── handlers/
-│   │   └── metrics/              # Prometheus counters/histograms
-│   ├── web/
-│   │   ├── assets.go            # go:embed directives
-│   │   ├── templates/
-│   │   └── static/{css,js}/
-│   ├── go.mod
-│   └── go.sum
-├── helm/my-world-cup-app/      # Helm chart
-├── Dockerfile
-├── docker-compose.yml
-├── Makefile
-├── VERSION                       # release version; see make helm-sync-version / docker-push
-├── README.md
-├── CHANGELOG.md
-├── CONTRIBUTING.md
-└── CLAUDE.md
-```
 
 ## Getting Started
 
@@ -342,6 +229,121 @@ All configuration is via environment variables (see `app/internal/config/config.
 | `WORLDCUP_GROUPS_URL`    | openfootball `2026/worldcup.groups.json`            | Group assignments source     |
 | `WORLDCUP_TEAMS_URL`     | openfootball `2026/worldcup.teams.json`             | Team metadata source          |
 | `WORLDCUP_STADIUMS_URL`  | openfootball `2026/worldcup.stadiums.json`          | Stadium data source           |
+
+## Technology Stack
+
+- [Go](https://go.dev/) 1.25 — standard library for the web layer (`net/http`, `html/template`, `encoding/json`, `embed`); no web framework.
+- [prometheus/client_golang](https://github.com/prometheus/client_golang) — the only third-party dependency, used solely for `/metrics` instrumentation (`app/internal/metrics`).
+- Vanilla CSS (custom properties for theming) and vanilla JavaScript (no build step, no client framework).
+- Docker / Docker Compose for containerized runs; a Helm chart for Kubernetes deployment.
+- `go test` for unit and integration tests.
+
+## Architecture
+
+The application follows a clean, layered architecture:
+
+```
+app/cmd/server        entrypoint: wiring, HTTP server lifecycle
+app/internal/config    environment-driven configuration
+app/internal/models    domain types (Team, Group, Match, Stadium, Standing, Tournament)
+app/internal/data      HTTP client, JSON parsing/normalization, thread-safe in-memory store
+app/internal/services  business logic: group standings, knockout grouping, match/stats queries
+app/internal/handlers  HTTP handlers, routing, template rendering
+app/internal/metrics   Prometheus instrumentation (HTTP requests, data refresh outcomes)
+app/web/               embedded HTML templates and static assets (CSS/JS)
+helm/                   Helm chart for Kubernetes deployment
+```
+
+- **Handlers** depend on **services** and the **data store**, never the other way around.
+- **Services** are pure functions operating on **models**, independent of HTTP or the data source — easy to unit test.
+- **Data** owns fetching, parsing, and caching; it exposes a `Store` with `Snapshot()` and `Refresh()`.
+- No database: the `Store` holds the current `Tournament` in memory behind a `sync.RWMutex`. Standings are recomputed from match results on every request rather than persisted.
+
+### Data flow
+
+```mermaid
+flowchart TD
+    subgraph Startup
+        A[main.go] --> B[data.NewStore]
+        B --> C[Seed from embedded fallback JSON]
+        A --> D[Background goroutine: store.Refresh]
+    end
+
+    subgraph Refresh["Data Refresh (startup or /refresh)"]
+        D --> E[data.Client.Fetch]
+        E -->|success| F[parse: JSON -> models.Tournament]
+        F --> G[Store.set: update in-memory snapshot]
+        E -->|failure| H[Keep previous snapshot, log warning]
+    end
+
+    subgraph Request["HTTP Request"]
+        I[Browser] --> J[handlers.Router]
+        J --> K[Store.Snapshot]
+        K --> L[services: GroupStandings / KnockoutStage / AllMatches / Stats]
+        L --> M[html/template render]
+        M --> I
+        J -.-> P[metrics.ObserveRequest]
+    end
+
+    subgraph UI["Update data button"]
+        N[Click 'Update data'] --> O[POST /refresh]
+        O --> E
+    end
+
+    G -.-> Q[metrics.RecordRefresh]
+    H -.-> Q
+    Q --> R["/metrics (Prometheus exposition)"]
+```
+
+### Request routing
+
+| Method | Path        | Handler              | Description                          |
+|--------|-------------|-----------------------|---------------------------------------|
+| GET    | `/`         | `pages.Home`          | Dashboard: upcoming/recent matches    |
+| GET    | `/groups`   | `pages.Groups`        | Group standings and results           |
+| GET    | `/knockout` | `pages.Knockout`      | Knockout stage bracket + round detail |
+| GET    | `/matches`  | `pages.Matches`       | Match list, filterable by `round`/`group`/`team` query params |
+| GET    | `/stats`    | `pages.Stats`         | Top scorers and team statistics       |
+| GET    | `/links`    | `pages.Links`         | Official FIFA/Spotify links, stadiums |
+| POST   | `/refresh`  | `refresh.Refresh`     | Triggers a live data refresh          |
+| GET    | `/healthz`  | `healthz`             | Health check (used by Docker/Helm)    |
+| GET    | `/metrics`  | Prometheus handler    | Prometheus metrics exposition         |
+| GET    | `/static/*` | embedded file server  | CSS/JS assets                         |
+
+## Directory Structure
+
+```
+my-world-cup-app/
+├── app/                          # Go module root — all application source
+│   ├── cmd/server/main.go
+│   ├── internal/
+│   │   ├── config/
+│   │   ├── models/
+│   │   ├── data/
+│   │   │   ├── client.go
+│   │   │   ├── fallback.go
+│   │   │   ├── fallback/        # embedded snapshot JSON (openfootball 2026 data)
+│   │   │   ├── parser.go
+│   │   │   └── store.go
+│   │   ├── services/            # standings, knockout, matches, stats
+│   │   ├── handlers/
+│   │   └── metrics/              # Prometheus counters/histograms
+│   ├── web/
+│   │   ├── assets.go            # go:embed directives
+│   │   ├── templates/
+│   │   └── static/{css,js}/
+│   ├── go.mod
+│   └── go.sum
+├── helm/my-world-cup-app/      # Helm chart
+├── Dockerfile
+├── docker-compose.yml
+├── Makefile
+├── VERSION                       # release version; see make helm-sync-version / docker-push
+├── README.md
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+└── CLAUDE.md
+```
 
 ## Data Refresh Behavior
 
