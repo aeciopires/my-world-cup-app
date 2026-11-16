@@ -3,6 +3,8 @@
 package handlers
 
 import (
+	"bytes"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -19,6 +21,11 @@ type Renderer struct {
 	pages map[string]*template.Template
 }
 
+// scorePill renders a result as a styled pill badge.
+func scorePill(home, away int) template.HTML {
+	return template.HTML(`<span class="score">` + strconv.Itoa(home) + ` - ` + strconv.Itoa(away) + `</span>`)
+}
+
 var templateFuncs = template.FuncMap{
 	"inc": func(i int) int { return i + 1 },
 	"linked": func(links map[string]string, name string) template.HTML {
@@ -32,9 +39,24 @@ var templateFuncs = template.FuncMap{
 	"flag": func(flags map[string]string, name string) template.HTML {
 		return template.HTML(`<span class="flag">` + template.HTMLEscapeString(flags[name]) + `</span>`)
 	},
-	// score renders a full-time result as a styled pill badge.
-	"score": func(home, away int) template.HTML {
-		return template.HTML(`<span class="score">` + strconv.Itoa(home) + ` - ` + strconv.Itoa(away) + `</span>`)
+	// score renders a single scoreline as a styled pill badge.
+	"score": scorePill,
+	// result renders a match's complete outcome: the final score pill (after
+	// extra time, if played), an "a.e.t." marker, and the penalty shoot-out
+	// score when there was one. Unplayed matches get the "scheduled" badge.
+	"result": func(m models.Match) template.HTML {
+		final := m.FinalScore()
+		if final == nil {
+			return `<span class="badge-scheduled">scheduled</span>`
+		}
+		out := scorePill(final.Home, final.Away)
+		if m.WentToExtraTime() {
+			out += ` <span class="muted result-note">a.e.t.</span>`
+		}
+		if p := m.Penalties; p != nil {
+			out += template.HTML(fmt.Sprintf(` <span class="muted result-note">(pens %d-%d)</span>`, p.Home, p.Away))
+		}
+		return out
 	},
 	// pairs groups a round's matches two at a time (in bracket order) so the
 	// knockout template can render each pair as a bracket "elbow" that feeds
@@ -43,44 +65,33 @@ var templateFuncs = template.FuncMap{
 	"pairs": func(matches []models.Match) [][]models.Match {
 		groups := make([][]models.Match, 0, (len(matches)+1)/2)
 		for i := 0; i < len(matches); i += 2 {
-			end := i + 2
-			if end > len(matches) {
-				end = len(matches)
-			}
-			groups = append(groups, matches[i:end])
+			groups = append(groups, matches[i:min(i+2, len(matches))])
 		}
 		return groups
 	},
 }
 
+// pageFiles maps each page name to its template, relative to web.Templates.
 var pageFiles = map[string]string{
-	"home":     "web/templates/home.html",
-	"groups":   "web/templates/groups.html",
-	"knockout": "web/templates/knockout.html",
-	"matches":  "web/templates/matches.html",
-	"links":    "web/templates/links.html",
-	"stats":    "web/templates/stats.html",
+	"home":     "templates/home.html",
+	"groups":   "templates/groups.html",
+	"knockout": "templates/knockout.html",
+	"matches":  "templates/matches.html",
+	"links":    "templates/links.html",
+	"stats":    "templates/stats.html",
 }
 
 // NewRenderer parses all page templates against the shared layout.
 func NewRenderer() (*Renderer, error) {
 	pages := make(map[string]*template.Template, len(pageFiles))
 	for name, file := range pageFiles {
-		tmpl, err := template.New("layout").Funcs(templateFuncs).ParseFS(web.Templates, "templates/layout.html", trimWebPrefix(file))
+		tmpl, err := template.New("layout").Funcs(templateFuncs).ParseFS(web.Templates, "templates/layout.html", file)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse template %q: %w", name, err)
 		}
 		pages[name] = tmpl
 	}
 	return &Renderer{pages: pages}, nil
-}
-
-func trimWebPrefix(path string) string {
-	const prefix = "web/"
-	if len(path) > len(prefix) && path[:len(prefix)] == prefix {
-		return path[len(prefix):]
-	}
-	return path
 }
 
 // baseData is embedded by every page's template data to supply the fields
@@ -96,21 +107,24 @@ type baseData struct {
 	CityLinks    map[string]string
 }
 
-func newBaseData(store *data.Store, title, active string) baseData {
-	tournament, lastUpdated, source := store.Snapshot()
+// newBaseData builds the shared layout data from the same snapshot the page
+// handler renders, so the header metadata, flags and links can never come
+// from a different refresh than the page body.
+func newBaseData(snap data.Snapshot, title, active string) baseData {
 	formatted := "never"
-	if !lastUpdated.IsZero() {
-		formatted = lastUpdated.Format(time.RFC1123)
+	if !snap.LastUpdated.IsZero() {
+		formatted = snap.LastUpdated.Format(time.RFC1123)
 	}
+	t := snap.Tournament
 	return baseData{
 		PageTitle:    title,
 		ActiveNav:    active,
 		LastUpdated:  formatted,
-		DataSource:   source,
-		Flags:        teamFlags(tournament),
-		TeamLinks:    teamLinks(tournament),
-		StadiumLinks: stadiumLinks(tournament),
-		CityLinks:    cityLinks(tournament),
+		DataSource:   snap.Source,
+		Flags:        teamFlags(t),
+		TeamLinks:    teamLinks(t),
+		StadiumLinks: stadiumLinks(t),
+		CityLinks:    cityLinks(t),
 	}
 }
 
@@ -125,15 +139,25 @@ func teamFlags(t models.Tournament) map[string]string {
 	return flags
 }
 
+// render executes the page template into a buffer first, so a template
+// error results in a clean 500 instead of a half-written page followed by
+// an error message (and a "superfluous WriteHeader" warning).
 func (r *Renderer) render(w http.ResponseWriter, page string, data any) {
 	tmpl, ok := r.pages[page]
 	if !ok {
 		http.Error(w, "template not found", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.ExecuteTemplate(w, "layout", data); err != nil {
+
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
 		slog.Error("template render failed", "page", page, "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := buf.WriteTo(w); err != nil {
+		slog.Debug("writing response failed", "page", page, "error", err)
 	}
 }

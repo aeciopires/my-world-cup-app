@@ -22,7 +22,7 @@ func newTestStore(t *testing.T) *data.Store {
 
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
-	router, err := handlers.NewRouter(newTestStore(t), time.Second)
+	router, err := handlers.NewRouter(newTestStore(t), time.Second, handlers.NewHealth())
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)
 	}
@@ -32,7 +32,7 @@ func newTestRouter(t *testing.T) http.Handler {
 func TestRoutes_ReturnOK(t *testing.T) {
 	router := newTestRouter(t)
 
-	routes := []string{"/", "/groups", "/knockout", "/matches", "/links", "/stats", "/healthz", "/metrics"}
+	routes := []string{"/", "/groups", "/knockout", "/matches", "/links", "/stats", "/healthz", "/readyz", "/metrics"}
 	for _, path := range routes {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, path, nil)

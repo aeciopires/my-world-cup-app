@@ -8,8 +8,10 @@ import (
 	"github.com/aeciopires/my-world-cup-app/internal/services"
 )
 
-const upcomingAndRecentLimit = 8
-const topScorersLimit = 15
+const (
+	upcomingAndRecentLimit = 8
+	topScorersLimit        = 15
+)
 
 // PageHandlers holds the dependencies needed to render tournament pages.
 type PageHandlers struct {
@@ -31,9 +33,10 @@ type homeData struct {
 
 // Home renders the dashboard page.
 func (h *PageHandlers) Home(w http.ResponseWriter, r *http.Request) {
-	tournament, _, _ := h.store.Snapshot()
+	snap := h.store.Snapshot()
+	tournament := snap.Tournament
 	h.renderer.render(w, "home", homeData{
-		baseData:       newBaseData(h.store, "Home", "home"),
+		baseData:       newBaseData(snap, "Home", "home"),
 		TournamentName: tournament.Name,
 		Upcoming:       services.UpcomingMatches(tournament, upcomingAndRecentLimit),
 		Recent:         services.RecentResults(tournament, upcomingAndRecentLimit),
@@ -47,9 +50,10 @@ type groupsData struct {
 
 // Groups renders group standings and results.
 func (h *PageHandlers) Groups(w http.ResponseWriter, r *http.Request) {
-	tournament, _, _ := h.store.Snapshot()
+	snap := h.store.Snapshot()
+	tournament := snap.Tournament
 	h.renderer.render(w, "groups", groupsData{
-		baseData: newBaseData(h.store, "Groups", "groups"),
+		baseData: newBaseData(snap, "Groups", "groups"),
 		Tables:   services.GroupStandings(tournament),
 	})
 }
@@ -67,11 +71,12 @@ type knockoutData struct {
 
 // Knockout renders the knockout stage bracket.
 func (h *PageHandlers) Knockout(w http.ResponseWriter, r *http.Request) {
-	tournament, _, _ := h.store.Snapshot()
+	snap := h.store.Snapshot()
+	tournament := snap.Tournament
 	rounds := services.KnockoutStage(tournament)
 	bracketRounds, thirdPlace := splitThirdPlaceRound(rounds)
 	h.renderer.render(w, "knockout", knockoutData{
-		baseData:      newBaseData(h.store, "Knockout Stage", "knockout"),
+		baseData:      newBaseData(snap, "Knockout Stage", "knockout"),
 		Rounds:        rounds,
 		BracketRounds: bracketRounds,
 		ThirdPlace:    thirdPlace,
@@ -85,7 +90,6 @@ func splitThirdPlaceRound(rounds []services.KnockoutRound) (bracket []services.K
 	bracket = make([]services.KnockoutRound, 0, len(rounds))
 	for _, round := range rounds {
 		if round.Name == thirdPlaceRoundName {
-			round := round
 			thirdPlace = &round
 			continue
 		}
@@ -107,13 +111,15 @@ type matchesData struct {
 // Matches renders the match list, optionally narrowed by the "round",
 // "group", and/or "team" query parameters (all optional, combinable).
 func (h *PageHandlers) Matches(w http.ResponseWriter, r *http.Request) {
-	tournament, _, _ := h.store.Snapshot()
+	snap := h.store.Snapshot()
+	tournament := snap.Tournament
 	all := services.AllMatches(tournament)
-	round := r.URL.Query().Get("round")
-	group := r.URL.Query().Get("group")
-	team := r.URL.Query().Get("team")
+	query := r.URL.Query()
+	round := query.Get("round")
+	group := query.Get("group")
+	team := query.Get("team")
 	h.renderer.render(w, "matches", matchesData{
-		baseData:      newBaseData(h.store, "Matches", "matches"),
+		baseData:      newBaseData(snap, "Matches", "matches"),
 		Matches:       services.FilterMatches(all, round, group, team),
 		TotalMatches:  len(all),
 		FilterOptions: services.MatchFilterOptions(tournament),
@@ -153,9 +159,10 @@ var fifaLinks = []externalLink{
 
 // Links renders the external FIFA resources page.
 func (h *PageHandlers) Links(w http.ResponseWriter, r *http.Request) {
-	tournament, _, _ := h.store.Snapshot()
+	snap := h.store.Snapshot()
+	tournament := snap.Tournament
 	h.renderer.render(w, "links", linksData{
-		baseData: newBaseData(h.store, "FIFA Links", "links"),
+		baseData: newBaseData(snap, "FIFA Links", "links"),
 		Links:    fifaLinks,
 		Stadiums: tournament.Stadiums,
 	})
@@ -170,9 +177,10 @@ type statsData struct {
 // Stats renders player and team statistics aggregated across the whole
 // tournament (group and knockout stages).
 func (h *PageHandlers) Stats(w http.ResponseWriter, r *http.Request) {
-	tournament, _, _ := h.store.Snapshot()
+	snap := h.store.Snapshot()
+	tournament := snap.Tournament
 	h.renderer.render(w, "stats", statsData{
-		baseData:      newBaseData(h.store, "Statistics", "stats"),
+		baseData:      newBaseData(snap, "Statistics", "stats"),
 		TopScorers:    services.TopScorers(tournament, topScorersLimit),
 		TeamStandings: services.TeamStandings(tournament),
 	})

@@ -296,6 +296,13 @@ main.container {
   letter-spacing: 0.02em;
 }
 
+/* "a.e.t." / "(pens x-y)" notes rendered next to a .score pill by the
+   `result` template func. */
+.result-note {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .badge-scheduled {
   display: inline-block;
   color: var(--text-muted);

@@ -2,14 +2,19 @@
 package config
 
 import (
+	"cmp"
+	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/aeciopires/my-world-cup-app/internal/data"
 )
 
+// DefaultPort is the HTTP port used when PORT is unset.
+const DefaultPort = "8080"
+
 const (
-	defaultPort         = "8080"
 	defaultFetchTimeout = 10 * time.Second
 	defaultMatchesURL   = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
 	defaultGroupsURL    = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.groups.json"
@@ -17,30 +22,69 @@ const (
 	defaultStadiumsURL  = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.stadiums.json"
 )
 
+// Log output formats accepted in LOG_FORMAT.
+const (
+	LogFormatText = "text"
+	LogFormatJSON = "json"
+)
+
 // Config holds runtime configuration for the server.
 type Config struct {
 	Port         string
 	FetchTimeout time.Duration
-	SourceURLs   data.SourceURLs
+	// LogFormat is LogFormatJSON (the default: one JSON object per line,
+	// parsed by log collectors such as Loki) or LogFormatText (logfmt-style,
+	// easier to read in a terminal).
+	LogFormat string
+	// ShutdownDrainDelay is how long the server keeps serving after a
+	// shutdown signal while /readyz already reports 503, giving a load
+	// balancer (e.g. Kubernetes endpoints) time to stop routing new
+	// requests here before connections are closed. 0 disables it.
+	ShutdownDrainDelay time.Duration
+	SourceURLs         data.SourceURLs
 }
 
 // Load builds a Config from environment variables, falling back to defaults.
 func Load() Config {
 	return Config{
-		Port:         envOr("PORT", defaultPort),
-		FetchTimeout: defaultFetchTimeout,
+		Port:               cmp.Or(os.Getenv("PORT"), DefaultPort),
+		FetchTimeout:       durationEnv("FETCH_TIMEOUT", defaultFetchTimeout),
+		LogFormat:          logFormatEnv("LOG_FORMAT"),
+		ShutdownDrainDelay: durationEnv("SHUTDOWN_DRAIN_DELAY", 0),
 		SourceURLs: data.SourceURLs{
-			Matches:  envOr("WORLDCUP_MATCHES_URL", defaultMatchesURL),
-			Groups:   envOr("WORLDCUP_GROUPS_URL", defaultGroupsURL),
-			Teams:    envOr("WORLDCUP_TEAMS_URL", defaultTeamsURL),
-			Stadiums: envOr("WORLDCUP_STADIUMS_URL", defaultStadiumsURL),
+			Matches:  cmp.Or(os.Getenv("WORLDCUP_MATCHES_URL"), defaultMatchesURL),
+			Groups:   cmp.Or(os.Getenv("WORLDCUP_GROUPS_URL"), defaultGroupsURL),
+			Teams:    cmp.Or(os.Getenv("WORLDCUP_TEAMS_URL"), defaultTeamsURL),
+			Stadiums: cmp.Or(os.Getenv("WORLDCUP_STADIUMS_URL"), defaultStadiumsURL),
 		},
 	}
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+// logFormatEnv returns LogFormatJSON (the default) or LogFormatText. An
+// unknown value falls back to JSON with a warning.
+func logFormatEnv(key string) string {
+	switch raw := strings.ToLower(os.Getenv(key)); raw {
+	case "", LogFormatJSON:
+		return LogFormatJSON
+	case LogFormatText:
+		return LogFormatText
+	default:
+		slog.Warn("invalid log format in environment, using default", "key", key, "value", raw, "default", LogFormatJSON)
+		return LogFormatJSON
 	}
-	return fallback
+}
+
+// durationEnv parses key as a Go duration (e.g. "15s"). Unset, invalid, or
+// non-positive values fall back to def, logging a warning for the latter two.
+func durationEnv(key string, def time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return def
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		slog.Warn("invalid duration in environment, using default", "key", key, "value", raw, "default", def.String())
+		return def
+	}
+	return d
 }

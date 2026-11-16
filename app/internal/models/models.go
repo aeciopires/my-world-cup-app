@@ -26,11 +26,14 @@ type Group struct {
 	Teams []string
 }
 
-// Goal represents a single goal scored during a match.
+// Goal represents a single goal scored during a match. Goals are listed
+// under the team they count for, so for an own goal Name is a player of the
+// *opposing* team.
 type Goal struct {
 	Name    string
 	Minute  string
 	Penalty bool
+	OwnGoal bool
 }
 
 // Score holds the goals scored by each side at a given stage of the match.
@@ -62,28 +65,56 @@ func (m Match) Played() bool {
 	return m.FullTime != nil
 }
 
-// Winner returns the name of the winning team, or "" for a draw/unplayed
-// match. For a knockout fixture that finishes level after full time, the
-// penalty shoot-out (if recorded) decides the winner.
-func (m Match) Winner() string {
+// WentToExtraTime reports whether the match has a recorded extra-time score.
+func (m Match) WentToExtraTime() bool {
+	return m.ExtraTime != nil
+}
+
+// FinalScore returns the score at the end of play (excluding any penalty
+// shoot-out): the extra-time score when the match went to extra time,
+// otherwise the full-time score. It returns nil for an unplayed match.
+//
+// openfootball reports the extra-time score cumulatively (it already
+// includes the goals scored in the first 90 minutes), so it can be used
+// as-is rather than added to FullTime.
+func (m Match) FinalScore() *Score {
 	if m.FullTime == nil {
+		return nil
+	}
+	if m.ExtraTime != nil {
+		return m.ExtraTime
+	}
+	return m.FullTime
+}
+
+// Winner returns the name of the winning team, or "" for a draw/unplayed
+// match. The score after extra time (if played) decides the winner; for a
+// knockout fixture still level after that, the penalty shoot-out (if
+// recorded) decides it.
+func (m Match) Winner() string {
+	final := m.FinalScore()
+	if final == nil {
 		return ""
 	}
-	if m.FullTime.Home > m.FullTime.Away {
-		return m.Team1
-	}
-	if m.FullTime.Away > m.FullTime.Home {
-		return m.Team2
+	if w := m.sideWinning(*final); w != "" {
+		return w
 	}
 	if m.Penalties != nil {
-		if m.Penalties.Home > m.Penalties.Away {
-			return m.Team1
-		}
-		if m.Penalties.Away > m.Penalties.Home {
-			return m.Team2
-		}
+		return m.sideWinning(*m.Penalties)
 	}
 	return ""
+}
+
+// sideWinning returns the team ahead in s, or "" when s is level.
+func (m Match) sideWinning(s Score) string {
+	switch {
+	case s.Home > s.Away:
+		return m.Team1
+	case s.Away > s.Home:
+		return m.Team2
+	default:
+		return ""
+	}
 }
 
 // Stadium represents a venue hosting matches.

@@ -3,9 +3,11 @@
 package metrics
 
 import (
+	"context"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Registry is the dedicated Prometheus registry for this application,
@@ -53,13 +55,29 @@ func init() {
 		dataRefreshTotal,
 		dataLastRefreshTimestamp,
 	)
+	// Export both outcomes as 0 from the start: a series that only appears
+	// at its first increment makes increase()/rate() miss that first event.
+	dataRefreshTotal.WithLabelValues("success")
+	dataRefreshTotal.WithLabelValues("failure")
 }
 
 // ObserveRequest records a completed HTTP request's status and duration.
-func ObserveRequest(method, path string, status int, duration time.Duration) {
-	statusLabel := statusLabelFor(status)
-	httpRequestsTotal.WithLabelValues(method, path, statusLabel).Inc()
-	httpRequestDuration.WithLabelValues(method, path).Observe(duration.Seconds())
+// When ctx carries a sampled trace, its ID is attached as an exemplar, so a
+// Grafana latency graph can link a data point straight to that trace
+// (exemplars are only exposed in the OpenMetrics format).
+func ObserveRequest(ctx context.Context, method, path string, status int, duration time.Duration) {
+	counter := httpRequestsTotal.WithLabelValues(method, path, statusLabelFor(status))
+	histogram := httpRequestDuration.WithLabelValues(method, path)
+
+	sc := trace.SpanContextFromContext(ctx)
+	if !sc.IsSampled() {
+		counter.Inc()
+		histogram.Observe(duration.Seconds())
+		return
+	}
+	exemplar := prometheus.Labels{"trace_id": sc.TraceID().String()}
+	counter.(prometheus.ExemplarAdder).AddWithExemplar(1, exemplar)
+	histogram.(prometheus.ExemplarObserver).ObserveWithExemplar(duration.Seconds(), exemplar)
 }
 
 // RecordRefresh records the outcome of a data refresh attempt. On success

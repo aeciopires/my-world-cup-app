@@ -1,19 +1,23 @@
 <!-- TOC -->
 
 - [Changelog](#changelog)
-  - [1.3.0 - 2026-07-11](#130---2026-07-11)
+  - [1.4.0 - 2026-11-16](#140---2026-11-16)
     - [Added](#added)
     - [Changed](#changed)
-  - [1.2.0 - 2026-07-06](#120---2026-07-06)
+    - [Fixed](#fixed)
+  - [1.3.0 - 2026-07-11](#130---2026-07-11)
     - [Added](#added-1)
     - [Changed](#changed-1)
-    - [Fixed](#fixed)
-  - [1.1.0 - 2026-07-05](#110---2026-07-05)
+  - [1.2.0 - 2026-07-06](#120---2026-07-06)
     - [Added](#added-2)
     - [Changed](#changed-2)
     - [Fixed](#fixed-1)
-  - [1.0.0 - 2026-06-30](#100---2026-06-30)
+  - [1.1.0 - 2026-07-05](#110---2026-07-05)
     - [Added](#added-3)
+    - [Changed](#changed-3)
+    - [Fixed](#fixed-2)
+  - [1.0.0 - 2026-06-30](#100---2026-06-30)
+    - [Added](#added-4)
     - [Planned / Future Improvements](#planned--future-improvements)
 
 <!-- TOC -->
@@ -23,6 +27,54 @@
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## 1.4.0 - 2026-11-16
+
+### Added
+
+- `mise.toml` pinning the development toolchain: Go 1.27.4, golangci-lint 2.15.0, Helm 4.3.2, helm-docs 1.14.2, kind 0.33.0, kubectl 1.36.2.
+- `make install-deps` (via `scripts/deps.sh install`): installs base packages (apt on Ubuntu, Xcode CLT on macOS), mise, and the pinned toolchain. Docker remains a separate install.
+- `make lint` (golangci-lint v2, config in `app/.golangci.yml`, including the `modernize` and `gosec` analyzers), now part of `make check`.
+- `make helm-template`.
+- `FETCH_TIMEOUT` environment variable (Go duration, default `10s`).
+- `REQUIREMENTS.md`: supported platforms (Ubuntu 22.04/24.04/26.04 amd64, macOS amd64/arm64) and installation instructions.
+- `docs/`: a beginner's guide to the architecture and features, with analogies and Mermaid diagrams.
+- `result` template func rendering a match's final score, an `a.e.t.` marker, and the penalty shoot-out score.
+- Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`) on every response; `HEALTHCHECK` in the `Dockerfile`.
+- Helm chart: pod `seccompProfile: RuntimeDefault`, explicit `runAsUser`/`runAsGroup` 65532, `serviceAccount.automountToken` (default `false`).
+- `GET /readyz` readiness endpoint (JSON with the data source in use; `503` once shutdown starts) and `SHUTDOWN_DRAIN_DELAY` to keep serving while load balancers notice it. Helm chart: readiness probe on `/readyz`, new `startupProbe` on `/healthz`, `terminationGracePeriodSeconds`, and `SHUTDOWN_DRAIN_DELAY=5s` by default.
+- OpenTelemetry tracing (`app/internal/telemetry`), enabled by the standard `OTEL_EXPORTER_OTLP_ENDPOINT` variable: a server span per request (named after the route; probes and `/metrics` excluded), a `data.Refresh` span with one client span per download, W3C trace-context propagation, and spans flushed on shutdown.
+- Trace exemplars on `http_requests_total` and `http_request_duration_seconds` (OpenMetrics exposition enabled on `/metrics`).
+- `LOG_FORMAT` (`json` default, or `text`); log lines carry `trace_id`/`span_id` when a trace context exists; the access log gained `route` and `duration_ms`.
+- Local observability stack (`docker-compose.observability.yml`, `observability/`): Grafana 13.3.1, Prometheus 3.16.0, Loki 3.7.10, Tempo 3.1.1, Jaeger 2.23.0, and Grafana Alloy 1.22.0, with cross-linked data sources (exemplars → traces, logs ↔ traces, spans → metrics) and three provisioned dashboards (Metrics, Logs, Traces). New targets `make observability-up`, `observability-down`, `observability-logs`, and `observability-validate`.
+- The binary reports its version (`-X main.version`, from the `VERSION` file) at startup and as the traces' `service.version`.
+
+### Changed
+
+- **Helm 4 is now required**; the chart fails to render under Helm 3 with an explicit error. Chart version bumped to `2.0.0`.
+- Go 1.25 → 1.27; `prometheus/client_golang` 1.23.2 → 1.25.0 (and transitive dependencies).
+- Docker images: builder `golang:1.27-alpine` (runs natively and cross-compiles per `TARGETARCH`), runtime `distroless/static-debian13:nonroot`; module downloads cached and verified.
+- `make check-deps` rewritten (`scripts/deps.sh check`): detects the platform, checks base packages, mise and every pinned tool version, and Docker/Compose/Buildx. All Makefile targets run tools through `mise exec`.
+- The four source files are downloaded in parallel (`sync.WaitGroup.Go`), each capped at 10 MiB.
+- Only one data refresh runs at a time; concurrent `POST /refresh` calls get `429 Too Many Requests` with `Retry-After`.
+- `data.Store.Snapshot()` returns a `data.Snapshot` struct, and page handlers build the layout data from that same snapshot.
+- Templates render into a buffer before writing, so template errors produce a clean 500.
+- HTTP server sets `ReadTimeout`, `WriteTimeout`, and `IdleTimeout`; the initial refresh is canceled on shutdown.
+- **Logs are now JSON by default** (previously slog's default text output); set `LOG_FORMAT=text` for the old human-oriented style. The access log's `duration` field is now `duration_ms` (float milliseconds).
+- `data_refresh_total{outcome}` series are exported at 0 from startup.
+- `docker-compose.yml` sets an explicit Compose project name (`my-world-cup-app`).
+- Code modernized per the JetBrains Modern Go Guidelines (`slices`/`maps`/`cmp`, `min`, `cmp.Or`, `strings.Cut`, `errors.Is`, `t.Context()`, `new(expr)`, ...).
+
+### Fixed
+
+- Knockout matches decided in **extra time** had no winner (no bracket highlight) and extra-time goals were missing from `/stats` team records; the score shown was the 90-minute one.
+- **Own goals** were credited to the player who scored them, listing them as a scorer for the opposing team on `/stats`.
+- Knockout "Match Details" venues linked through `StadiumLinks` (keyed by stadium name) and therefore never linked; they now use `CityLinks`.
+- `http_requests_total`/`http_request_duration_seconds` used the raw URL path as the `path` label for unmatched requests (unbounded cardinality); they're now labeled `unmatched`.
+- The `/matches` team filter listed knockout placeholders such as `W74` as teams.
+- Top-scorer order was nondeterministic for players with the same name and goal count; `TopScorers` panicked on a negative limit.
+- `app.js` stopped initializing every button when `localStorage` was unavailable (private browsing / blocked site data).
+- The `Dockerfile` dependency-download layer ignored `go.sum`.
 
 ## 1.3.0 - 2026-07-11
 

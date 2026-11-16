@@ -24,6 +24,9 @@ serviceAccount:
   annotations: {}
   # -- Name of the ServiceAccount to use (generated if empty and create=true)
   name: ""
+  # -- Mount the ServiceAccount API token into the pod. The app never talks to
+  # the Kubernetes API, so this is off by default.
+  automountToken: false
 
 podAnnotations:
   # -- Enables Prometheus scrape discovery for this pod
@@ -36,6 +39,13 @@ podAnnotations:
 podSecurityContext:
   # -- Require the pod to run as a non-root user
   runAsNonRoot: true
+  # -- UID to run as (matches the distroless "nonroot" user baked into the image)
+  runAsUser: 65532
+  # -- GID to run as
+  runAsGroup: 65532
+  seccompProfile:
+    # -- Seccomp profile applied to the pod
+    type: RuntimeDefault
 
 securityContext:
   # -- Disallow privilege escalation for the container
@@ -52,15 +62,30 @@ service:
   # -- Service port (also used as the Prometheus scrape port annotation)
   port: 8080
 
-# -- Environment variables passed through to the container. PORT must match
-# service.port and containerPort below if overridden. Uncomment any
-# WORLDCUP_*_URL entry to override the default openfootball data source.
+# -- Environment variables passed through to the container (see the app's
+# README "Configuration" table). PORT must match service.port and
+# containerPort if overridden. SHUTDOWN_DRAIN_DELAY keeps the pod serving
+# while /readyz reports 503 after SIGTERM, so it leaves the Service's
+# endpoints before connections close; keep it below terminationGracePeriodSeconds
+# minus ~10s. Uncomment the OTEL_* entries to export traces to an
+# OpenTelemetry collector (e.g. Grafana Alloy or the OpenTelemetry Collector).
 env:
   PORT: "8080"
+  LOG_FORMAT: "json"
+  SHUTDOWN_DRAIN_DELAY: "5s"
+  # FETCH_TIMEOUT: "10s"
   # WORLDCUP_MATCHES_URL: ""
   # WORLDCUP_GROUPS_URL: ""
   # WORLDCUP_TEAMS_URL: ""
   # WORLDCUP_STADIUMS_URL: ""
+  # OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.monitoring.svc:4318"
+  # OTEL_SERVICE_NAME: "my-world-cup-app"
+  # OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+  # OTEL_TRACES_SAMPLER_ARG: "0.1"
+
+# -- Seconds Kubernetes waits after SIGTERM before killing the pod. Must cover
+# env.SHUTDOWN_DRAIN_DELAY plus the app's 10s graceful-shutdown window.
+terminationGracePeriodSeconds: 30
 
 # -- Port the application listens on inside the container
 containerPort: 8080
@@ -77,27 +102,48 @@ resources:
     # -- Memory limit
     memory: 128Mi
 
+# Probes: /healthz is liveness only ("is the process alive?"); /readyz is
+# readiness ("send me traffic?") and turns 503 as soon as shutdown starts.
+# The startup probe holds off liveness checks until the server answers once.
+
+startupProbe:
+  httpGet:
+    # -- Startup probe HTTP path
+    path: /healthz
+    # -- Startup probe port (named container port)
+    port: http
+  # -- Seconds between startup probes
+  periodSeconds: 2
+  # -- Failed startup probes tolerated (periodSeconds x failureThreshold = max startup time)
+  failureThreshold: 15
+  # -- Seconds before a startup probe times out
+  timeoutSeconds: 2
+
 livenessProbe:
   httpGet:
     # -- Liveness probe HTTP path
     path: /healthz
     # -- Liveness probe port (named container port)
     port: http
-  # -- Seconds to wait before the first liveness probe
-  initialDelaySeconds: 5
   # -- Seconds between liveness probes
   periodSeconds: 15
+  # -- Consecutive failures before the container is restarted
+  failureThreshold: 3
+  # -- Seconds before a liveness probe times out
+  timeoutSeconds: 2
 
 readinessProbe:
   httpGet:
-    # -- Readiness probe HTTP path
-    path: /healthz
+    # -- Readiness probe HTTP path (503 while draining on shutdown)
+    path: /readyz
     # -- Readiness probe port (named container port)
     port: http
-  # -- Seconds to wait before the first readiness probe
-  initialDelaySeconds: 3
-  # -- Seconds between readiness probes
-  periodSeconds: 10
+  # -- Seconds between readiness probes (keep it below env.SHUTDOWN_DRAIN_DELAY)
+  periodSeconds: 5
+  # -- Consecutive failures before the pod is removed from Service endpoints
+  failureThreshold: 1
+  # -- Seconds before a readiness probe times out
+  timeoutSeconds: 2
 
 ingress:
   # -- Enable the Ingress resource

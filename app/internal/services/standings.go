@@ -3,7 +3,8 @@
 package services
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/aeciopires/my-world-cup-app/internal/models"
 )
@@ -47,15 +48,11 @@ func GroupStandings(t models.Tournament) []GroupTable {
 			applyResult(standingByTeam, m)
 		}
 
-		standings := make([]models.Standing, 0, len(standingByTeam))
-		for _, s := range standingByTeam {
-			standings = append(standings, *s)
-		}
-		sortStandings(standings)
-
-		sortMatchesByRoundAndDate(groupMatches)
-
-		tables = append(tables, GroupTable{Group: g, Standings: standings, Matches: groupMatches})
+		tables = append(tables, GroupTable{
+			Group:     g,
+			Standings: collectStandings(standingByTeam),
+			Matches:   sortMatchesByDate(groupMatches),
+		})
 	}
 	return tables
 }
@@ -70,22 +67,27 @@ func applyResult(byTeam map[string]*models.Standing, m models.Match) {
 }
 
 // accumulateResult applies a played match's result to the two teams'
-// running standings. The caller is responsible for resolving (or creating)
-// the Standing entries and for ensuring m.Played() is true.
+// running standings. Goals scored in extra time count (the score after
+// extra time is used when present), but a penalty shoot-out does not: a
+// knockout match level after extra time counts as a draw, as in FIFA's own
+// tournament statistics. The caller is responsible for resolving (or
+// creating) the Standing entries and for ensuring m.Played() is true.
 func accumulateResult(home, away *models.Standing, m models.Match) {
+	score := m.FinalScore()
+
 	home.Played++
 	away.Played++
-	home.GoalsFor += m.FullTime.Home
-	home.GoalsAgainst += m.FullTime.Away
-	away.GoalsFor += m.FullTime.Away
-	away.GoalsAgainst += m.FullTime.Home
+	home.GoalsFor += score.Home
+	home.GoalsAgainst += score.Away
+	away.GoalsFor += score.Away
+	away.GoalsAgainst += score.Home
 
 	switch {
-	case m.FullTime.Home > m.FullTime.Away:
+	case score.Home > score.Away:
 		home.Won++
 		home.Points += pointsForWin
 		away.Lost++
-	case m.FullTime.Home < m.FullTime.Away:
+	case score.Home < score.Away:
 		away.Won++
 		away.Points += pointsForWin
 		home.Lost++
@@ -100,27 +102,38 @@ func accumulateResult(home, away *models.Standing, m models.Match) {
 	away.GoalDifference = away.GoalsFor - away.GoalsAgainst
 }
 
+// collectStandings flattens a team → standing map into a ranked slice.
+func collectStandings(byTeam map[string]*models.Standing) []models.Standing {
+	standings := make([]models.Standing, 0, len(byTeam))
+	for _, s := range byTeam {
+		standings = append(standings, *s)
+	}
+	sortStandings(standings)
+	return standings
+}
+
+// sortStandings orders rows by points, goal difference, goals for (all
+// descending), then team name. Team names are unique, so the order is
+// total and deterministic regardless of the input (map iteration) order.
 func sortStandings(standings []models.Standing) {
-	sort.SliceStable(standings, func(i, j int) bool {
-		a, b := standings[i], standings[j]
-		if a.Points != b.Points {
-			return a.Points > b.Points
-		}
-		if a.GoalDifference != b.GoalDifference {
-			return a.GoalDifference > b.GoalDifference
-		}
-		if a.GoalsFor != b.GoalsFor {
-			return a.GoalsFor > b.GoalsFor
-		}
-		return a.Team < b.Team
+	slices.SortFunc(standings, func(a, b models.Standing) int {
+		return cmp.Or(
+			cmp.Compare(b.Points, a.Points),
+			cmp.Compare(b.GoalDifference, a.GoalDifference),
+			cmp.Compare(b.GoalsFor, a.GoalsFor),
+			cmp.Compare(a.Team, b.Team),
+		)
 	})
 }
 
-func sortMatchesByRoundAndDate(matches []models.Match) {
-	sort.SliceStable(matches, func(i, j int) bool {
-		if matches[i].Date != matches[j].Date {
-			return matches[i].Date < matches[j].Date
-		}
-		return matches[i].Num < matches[j].Num
-	})
+// compareByDate orders matches by date, then by match number.
+func compareByDate(a, b models.Match) int {
+	return cmp.Or(cmp.Compare(a.Date, b.Date), cmp.Compare(a.Num, b.Num))
+}
+
+// sortMatchesByDate sorts matches in place by date, then by match number,
+// and returns the same slice for convenience.
+func sortMatchesByDate(matches []models.Match) []models.Match {
+	slices.SortStableFunc(matches, compareByDate)
+	return matches
 }

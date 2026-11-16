@@ -1,0 +1,33 @@
+# Prometheus scrape configuration for the local observability stack.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: docker-compose
+
+scrape_configs:
+  # The application. Prometheus negotiates the OpenMetrics format, which is
+  # what carries the trace-ID exemplars on http_* metrics.
+  - job_name: my-world-cup-app
+    static_configs:
+      - targets: ["app:8080"]
+
+  # The observability stack's own health.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:3100"]
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:3200"]
+  - job_name: jaeger
+    static_configs:
+      - targets: ["jaeger:8888"]
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]

@@ -1,3 +1,7 @@
+# Fixed project name: the observability stack's log collector (Alloy) only
+# picks up containers carrying this Compose project label.
+name: my-world-cup-app
+
 services:
   app:
     build:

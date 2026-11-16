@@ -35,10 +35,15 @@ type rawScore struct {
 	P  []int `json:"p"`
 }
 
+// rawGoal is a single entry of a match's goals1/goals2 list. Each list holds
+// the goals credited to that side, so an own goal appears in the
+// *benefiting* team's list, under the name of the opposing player who
+// scored it.
 type rawGoal struct {
 	Name    string `json:"name"`
 	Minute  string `json:"minute"`
 	Penalty bool   `json:"penalty"`
+	OwnGoal bool   `json:"owngoal"`
 }
 
 // rawGroupsFile mirrors worldcup.groups.json.
@@ -181,6 +186,7 @@ func normalizeGoals(raw []rawGoal) []models.Goal {
 			Name:    g.Name,
 			Minute:  g.Minute,
 			Penalty: g.Penalty,
+			OwnGoal: g.OwnGoal,
 		})
 	}
 	return goals

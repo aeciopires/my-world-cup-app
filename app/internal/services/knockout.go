@@ -1,7 +1,8 @@
 package services
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/aeciopires/my-world-cup-app/internal/models"
 )
@@ -38,7 +39,7 @@ func KnockoutStage(t models.Tournament) []KnockoutRound {
 		if len(matches) == 0 {
 			continue
 		}
-		sort.SliceStable(matches, func(i, j int) bool { return matches[i].Num < matches[j].Num })
+		slices.SortStableFunc(matches, func(a, b models.Match) int { return cmp.Compare(a.Num, b.Num) })
 		rounds = append(rounds, KnockoutRound{Name: name, Matches: matches})
 	}
 	return rounds

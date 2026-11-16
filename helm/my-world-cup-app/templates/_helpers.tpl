@@ -55,3 +55,13 @@ Service account name.
 {{- default "default" .Values.serviceAccount.name -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Fail fast when rendered by anything older than Helm 4. The chart is only
+tested against Helm 4 (see REQUIREMENTS.md); Helm 3 is no longer supported.
+*/}}
+{{- define "my-world-cup-app.requireHelm4" -}}
+{{- if semverCompare "<4.0.0-0" .Capabilities.HelmVersion.Version -}}
+{{- fail (printf "chart %s requires Helm 4 (found %s). Helm 3 is no longer supported - see https://helm.sh/docs/intro/install/" .Chart.Name .Capabilities.HelmVersion.Version) -}}
+{{- end -}}
+{{- end -}}

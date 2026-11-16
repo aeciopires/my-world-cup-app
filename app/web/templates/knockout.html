@@ -19,13 +19,13 @@
             <div class="bracket-match">
               <div class="bracket-team{{if and .FullTime (eq .Winner .Team1)}} winner{{end}}">
                 <span class="bracket-team-name">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span>
-                <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Home}}{{else}}–{{end}}</span>
+                <span class="bracket-team-score">{{with .FinalScore}}{{.Home}}{{else}}–{{end}}</span>
               </div>
               <div class="bracket-team{{if and .FullTime (eq .Winner .Team2)}} winner{{end}}">
                 <span class="bracket-team-name">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span>
-                <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Away}}{{else}}–{{end}}</span>
+                <span class="bracket-team-score">{{with .FinalScore}}{{.Away}}{{else}}–{{end}}</span>
               </div>
-              {{if .Penalties}}<div class="bracket-pens">pens {{.Penalties.Home}}-{{.Penalties.Away}}</div>{{end}}
+              {{if .Penalties}}<div class="bracket-pens">pens {{.Penalties.Home}}-{{.Penalties.Away}}</div>{{else if .WentToExtraTime}}<div class="bracket-pens">a.e.t.</div>{{end}}
             </div>
             {{end}}
           </div>
@@ -43,13 +43,13 @@
     <div class="bracket-match">
       <div class="bracket-team{{if and .FullTime (eq .Winner .Team1)}} winner{{end}}">
         <span class="bracket-team-name">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span>
-        <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Home}}{{else}}–{{end}}</span>
+        <span class="bracket-team-score">{{with .FinalScore}}{{.Home}}{{else}}–{{end}}</span>
       </div>
       <div class="bracket-team{{if and .FullTime (eq .Winner .Team2)}} winner{{end}}">
         <span class="bracket-team-name">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span>
-        <span class="bracket-team-score">{{if .FullTime}}{{.FullTime.Away}}{{else}}–{{end}}</span>
+        <span class="bracket-team-score">{{with .FinalScore}}{{.Away}}{{else}}–{{end}}</span>
       </div>
-      {{if .Penalties}}<div class="bracket-pens">pens {{.Penalties.Home}}-{{.Penalties.Away}}</div>{{end}}
+      {{if .Penalties}}<div class="bracket-pens">pens {{.Penalties.Home}}-{{.Penalties.Away}}</div>{{else if .WentToExtraTime}}<div class="bracket-pens">a.e.t.</div>{{end}}
     </div>
     {{end}}
   </div>
@@ -69,17 +69,10 @@
       <tbody>
         {{range .Matches}}
         <tr>
-          <td>{{.Date}}</td>
+          <td class="nowrap-cell">{{.Date}}</td>
           <td class="team-cell"><span class="team">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> vs <span class="team">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
-          <td>{{linked $.StadiumLinks .Ground}}</td>
-          <td>
-            {{if .FullTime}}
-              {{score .FullTime.Home .FullTime.Away}}
-              {{if .Penalties}} <span class="muted">(pens {{.Penalties.Home}}-{{.Penalties.Away}})</span>{{end}}
-            {{else}}
-              <span class="badge-scheduled">scheduled</span>
-            {{end}}
-          </td>
+          <td>{{linked $.CityLinks .Ground}}</td>
+          <td>{{result .}}</td>
         </tr>
         {{end}}
       </tbody>

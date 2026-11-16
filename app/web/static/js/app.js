@@ -8,17 +8,35 @@
     root.setAttribute("data-theme", theme);
   }
 
+  // localStorage can throw (private browsing, blocked site data); a failure
+  // here must not abort the rest of the script, or no button would work.
+  function readStoredTheme() {
+    try {
+      return localStorage.getItem(THEME_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storeTheme(theme) {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch (e) {
+      /* preference just won't persist */
+    }
+  }
+
   function initTheme() {
-    var stored = localStorage.getItem(THEME_KEY);
-    var preferred = stored || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-    applyTheme(preferred);
+    var stored = readStoredTheme();
+    var prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+    applyTheme(stored || (prefersLight ? "light" : "dark"));
   }
 
   function toggleTheme() {
     var current = root.getAttribute("data-theme") === "light" ? "light" : "dark";
     var next = current === "light" ? "dark" : "light";
     applyTheme(next);
-    localStorage.setItem(THEME_KEY, next);
+    storeTheme(next);
   }
 
   function initRefresh() {
@@ -30,6 +48,7 @@
       btn.textContent = "Updating…";
       fetch("/refresh", { method: "POST" })
         .then(function (res) {
+          if (res.status === 429) throw new Error("in-progress");
           if (!res.ok) throw new Error("refresh failed: " + res.status);
           window.location.reload();
         })
@@ -37,7 +56,9 @@
           console.error(err);
           btn.disabled = false;
           btn.textContent = originalText;
-          alert("Failed to update data. Please try again.");
+          alert(err.message === "in-progress"
+            ? "An update is already in progress. Please try again in a few seconds."
+            : "Failed to update data. Please try again.");
         });
     });
   }

@@ -1,0 +1,140 @@
+# Local observability stack for My World Cup App: metrics, logs, and traces.
+#
+# Use it as an override on top of docker-compose.yml (the Makefile does this):
+#
+#   make observability-up      # = docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d --build
+#   make observability-down
+#
+# Data flow:
+#   metrics  app /metrics ──scrape──▶ Prometheus ◀──remote write── Tempo (span metrics, service graph)
+#   logs     container stdout ──Docker API──▶ Alloy ──push──▶ Loki
+#   traces   app ──OTLP/HTTP──▶ Alloy ──OTLP/gRPC──▶ Tempo + Jaeger
+#   Grafana reads all of them and links them together (exemplars, trace_id).
+#
+# Every published port is bound to 127.0.0.1: this is a local, unauthenticated
+# development setup (Grafana grants anonymous Admin) — never expose it as-is.
+# Host ports can be changed if they clash with something else on your machine:
+# GRAFANA_PORT, PROMETHEUS_PORT, LOKI_PORT, TEMPO_PORT, JAEGER_PORT, ALLOY_PORT
+# (e.g. `make observability-up GRAFANA_PORT=13000`).
+
+services:
+  app:
+    environment:
+      OTEL_SERVICE_NAME: my-world-cup-app
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=docker-compose
+    labels:
+      # Alloy uses this as the Loki service_name label, matching the traces'
+      # service.name so Grafana can jump between the two.
+      logging.service_name: my-world-cup-app
+    depends_on:
+      alloy:
+        condition: service_started
+
+  alloy:
+    image: grafana/alloy:v1.22.0
+    container_name: wca-alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Read-only Docker API access, to discover containers and read their
+      # logs. Note: even read-only, the Docker socket is a powerful
+      # credential — fine for a local dev stack, not for shared hosts.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "127.0.0.1:${ALLOY_PORT:-12345}:12345" # Alloy UI (pipeline graph, debugging)
+    restart: unless-stopped
+    depends_on:
+      - loki
+      - tempo
+      - jaeger
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    container_name: wca-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      # Tempo's metrics generator pushes span metrics/service graphs here.
+      - --web.enable-remote-write-receiver
+      # Keep the trace IDs attached to request-latency samples.
+      - --enable-feature=exemplar-storage
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.7.10
+    container_name: wca-loki
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:3.1.1
+    container_name: wca-tempo
+    command: -target=all -config.file=/etc/tempo/tempo.yml
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:${TEMPO_PORT:-3200}:3200"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    container_name: wca-jaeger
+    ports:
+      - "127.0.0.1:${JAEGER_PORT:-16686}:16686" # Jaeger UI
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    container_name: wca-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Jaeger >= 2.21 removed the legacy /api/services, /api/traces... HTTP
+      # endpoints; this toggle makes Grafana's Jaeger data source use
+      # Jaeger's /api/v3 query API instead.
+      GF_FEATURE_TOGGLES_ENABLE: jaegerEnableGrpcEndpoint
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/world-cup-metrics.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+      - jaeger
+
+volumes:
+  alloy-data:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  grafana-data:

@@ -1,0 +1,15 @@
+# Loads every dashboard JSON in /var/lib/grafana/dashboards
+# (observability/grafana/dashboards in the repo) into one folder.
+apiVersion: 1
+
+providers:
+  - name: my-world-cup-app
+    orgId: 1
+    folder: My World Cup App
+    folderUid: my-world-cup-app
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

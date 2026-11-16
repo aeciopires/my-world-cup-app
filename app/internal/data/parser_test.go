@@ -13,7 +13,7 @@ const testMatchesJSON = `{
       "team1": "Alpha",
       "team2": "Beta",
       "score": {"ft": [2, 0], "ht": [1, 0]},
-      "goals1": [{"name": "Player A", "minute": "9"}],
+      "goals1": [{"name": "Player A", "minute": "9"}, {"name": "Player B", "minute": "50", "owngoal": true}],
       "goals2": [],
       "group": "Group A",
       "ground": "Test Stadium"
@@ -82,8 +82,11 @@ func TestParse_Matches(t *testing.T) {
 	if played.Winner() != "Alpha" {
 		t.Errorf("Winner() = %q, want Alpha", played.Winner())
 	}
-	if len(played.Goals1) != 1 || played.Goals1[0].Name != "Player A" {
+	if len(played.Goals1) != 2 || played.Goals1[0].Name != "Player A" || played.Goals1[0].OwnGoal {
 		t.Errorf("Goals1 = %+v", played.Goals1)
+	}
+	if !played.Goals1[1].OwnGoal {
+		t.Errorf("Goals1[1].OwnGoal = false, want true for an owngoal entry")
 	}
 
 	unplayed := tournament.Matches[1]

@@ -40,7 +40,7 @@
         <tr>
           <td class="nowrap-cell" data-label="Date">{{.Date}}</td>
           <td class="nowrap-cell" data-label="Round">{{.Round}}</td>
-          <td class="team-cell"><span class="team">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> {{score .FullTime.Home .FullTime.Away}} <span class="team">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
+          <td class="team-cell"><span class="team">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> {{result .}} <span class="team">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
         </tr>
         {{end}}
       </tbody>

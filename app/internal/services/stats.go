@@ -1,7 +1,8 @@
 package services
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 
 	"github.com/aeciopires/my-world-cup-app/internal/models"
 )
@@ -15,18 +16,29 @@ type PlayerStat struct {
 
 // TopScorers aggregates goals per player across every match (group and
 // knockout stages) and returns the top n, ordered by goals scored
-// descending, then alphabetically by name.
+// descending, then alphabetically by name, then by team. Own goals are
+// excluded: they count for the opposing team's score but are not credited
+// to the scorer, as in FIFA's Golden Boot ranking. A non-positive n returns
+// an empty result.
 func TopScorers(t models.Tournament, n int) []PlayerStat {
+	if n <= 0 {
+		return []PlayerStat{}
+	}
+
 	type key struct{ name, team string }
 	tally := make(map[key]int)
+	count := func(goals []models.Goal, team string) {
+		for _, g := range goals {
+			if g.OwnGoal {
+				continue
+			}
+			tally[key{g.Name, team}]++
+		}
+	}
 
 	for _, m := range t.Matches {
-		for _, g := range m.Goals1 {
-			tally[key{g.Name, m.Team1}]++
-		}
-		for _, g := range m.Goals2 {
-			tally[key{g.Name, m.Team2}]++
-		}
+		count(m.Goals1, m.Team1)
+		count(m.Goals2, m.Team2)
 	}
 
 	scorers := make([]PlayerStat, 0, len(tally))
@@ -34,17 +46,17 @@ func TopScorers(t models.Tournament, n int) []PlayerStat {
 		scorers = append(scorers, PlayerStat{Name: k.name, Team: k.team, Goals: goals})
 	}
 
-	sort.SliceStable(scorers, func(i, j int) bool {
-		if scorers[i].Goals != scorers[j].Goals {
-			return scorers[i].Goals > scorers[j].Goals
-		}
-		return scorers[i].Name < scorers[j].Name
+	// Name+Team is the map key, so this order is total and deterministic
+	// even though map iteration order is random.
+	slices.SortFunc(scorers, func(a, b PlayerStat) int {
+		return cmp.Or(
+			cmp.Compare(b.Goals, a.Goals),
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.Team, b.Team),
+		)
 	})
 
-	if len(scorers) > n {
-		scorers = scorers[:n]
-	}
-	return scorers
+	return scorers[:min(n, len(scorers))]
 }
 
 // TeamStandings aggregates each team's overall record (played, won, drawn,
@@ -68,15 +80,8 @@ func TeamStandings(t models.Tournament) []models.Standing {
 		if !m.Played() {
 			continue
 		}
-		home := getOrCreate(m.Team1)
-		away := getOrCreate(m.Team2)
-		accumulateResult(home, away, m)
+		accumulateResult(getOrCreate(m.Team1), getOrCreate(m.Team2), m)
 	}
 
-	standings := make([]models.Standing, 0, len(byTeam))
-	for _, s := range byTeam {
-		standings = append(standings, *s)
-	}
-	sortStandings(standings)
-	return standings
+	return collectStandings(byTeam)
 }

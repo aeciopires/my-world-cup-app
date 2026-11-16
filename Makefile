@@ -17,84 +17,79 @@ APP_VERSION := $(shell cat $(VERSION_FILE) 2>/dev/null || echo 0.0.0)
 DOCKER_TAG ?= $(APP_VERSION)
 DOCKER_PLATFORMS ?= linux/amd64,linux/arm64
 BUILDX_BUILDER := $(APP_NAME)-builder
+# Stamps the release into the binary (reported as the traces' service.version).
+GO_LDFLAGS := -s -w -X main.version=$(APP_VERSION)
+# Local observability stack: the app plus Grafana/Prometheus/Loki/Tempo/
+# Jaeger/Alloy (see docker-compose.observability.yml and observability/).
+# Host ports are overridable when they clash, e.g. `make observability-up GRAFANA_PORT=13000`.
+GRAFANA_PORT ?= 3000
+PROMETHEUS_PORT ?= 9090
+LOKI_PORT ?= 3100
+TEMPO_PORT ?= 3200
+JAEGER_PORT ?= 16686
+ALLOY_PORT ?= 12345
+OBS_COMPOSE := PORT=$(PORT) GRAFANA_PORT=$(GRAFANA_PORT) PROMETHEUS_PORT=$(PROMETHEUS_PORT) LOKI_PORT=$(LOKI_PORT) \
+	TEMPO_PORT=$(TEMPO_PORT) JAEGER_PORT=$(JAEGER_PORT) ALLOY_PORT=$(ALLOY_PORT) \
+	docker compose -f docker-compose.yml -f docker-compose.observability.yml
+
+# Run toolchain commands through mise so the versions pinned in mise.toml are
+# used even when mise isn't activated in the user's shell. Falls back to
+# whatever is on PATH when mise isn't installed (run `make install-deps`).
+MISE := $(shell command -v mise 2>/dev/null || { test -x $(HOME)/.local/bin/mise && echo $(HOME)/.local/bin/mise; })
+RUN := $(if $(MISE),$(MISE) exec --,)
 
 .PHONY: help
 help: ## Show this help
-	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: check-deps
-check-deps: ## Verify required development/runtime tools are installed
-	@missing=0; \
-	echo "Checking required tools..."; \
-	check() { \
-		if command -v "$$1" >/dev/null 2>&1; then \
-			printf "  [OK]      %-15s %s\n" "$$1" "$$(command -v $$1)"; \
-		else \
-			printf "  [MISSING] %-15s install: %s\n" "$$1" "$$2"; \
-			missing=1; \
-		fi; \
-	}; \
-	check git "https://git-scm.com/downloads"; \
-	check go "https://go.dev/doc/install"; \
-	check docker "https://docs.docker.com/get-docker/"; \
-	check helm "https://helm.sh/docs/intro/install/"; \
-	check helm-docs "https://github.com/norwoodj/helm-docs#installation"; \
-	check kind "https://kind.sigs.k8s.io/docs/user/quick-start/#installation"; \
-	if docker compose version >/dev/null 2>&1; then \
-		printf "  [OK]      %-15s %s\n" "docker compose" "$$(docker compose version --short 2>/dev/null)"; \
-	else \
-		printf "  [MISSING] %-15s install: %s\n" "docker compose" "https://docs.docker.com/compose/install/"; \
-		missing=1; \
-	fi; \
-	if docker buildx version >/dev/null 2>&1; then \
-		printf "  [OK]      %-15s %s\n" "docker buildx" "$$(docker buildx version 2>/dev/null)"; \
-	else \
-		printf "  [MISSING] %-15s install: %s\n" "docker buildx" "https://docs.docker.com/build/architecture/#buildx"; \
-		missing=1; \
-	fi; \
-	echo ""; \
-	if [ "$$missing" -eq 1 ]; then \
-		echo "One or more required tools are missing. Install them using the links above."; \
-		exit 1; \
-	fi; \
-	echo "All required tools are installed."
+check-deps: ## Check that every required tool (base packages, mise-pinned toolchain, Docker) is installed
+	@scripts/deps.sh check
+
+.PHONY: install-deps
+install-deps: ## Install base packages, mise, and the toolchain pinned in mise.toml (Docker is installed separately)
+	@scripts/deps.sh install
 
 .PHONY: run
 run: ## Run the application locally
-	PORT=$(PORT) go -C $(APP_DIR) run ./cmd/server
+	PORT=$(PORT) $(RUN) go -C $(APP_DIR) run -ldflags="-X main.version=$(APP_VERSION)" ./cmd/server
 
 .PHONY: build
 build: ## Build the server binary into bin/
 	mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 go -C $(APP_DIR) build -trimpath -ldflags="-s -w" -o $(CURDIR)/$(BIN_DIR)/$(APP_NAME) ./cmd/server
+	CGO_ENABLED=0 $(RUN) go -C $(APP_DIR) build -trimpath -ldflags="$(GO_LDFLAGS)" -o $(CURDIR)/$(BIN_DIR)/$(APP_NAME) ./cmd/server
 
 .PHONY: test
 test: ## Run all tests
-	go -C $(APP_DIR) test ./... -v
+	$(RUN) go -C $(APP_DIR) test ./... -v
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage report
-	go -C $(APP_DIR) test ./... -cover -coverprofile=$(CURDIR)/coverage.out
-	go tool cover -func=$(CURDIR)/coverage.out
+	$(RUN) go -C $(APP_DIR) test ./... -cover -coverprofile=$(CURDIR)/coverage.out
+	$(RUN) go -C $(APP_DIR) tool cover -func=$(CURDIR)/coverage.out
 
 .PHONY: fmt
 fmt: ## Format source code
-	gofmt -w $(APP_DIR)
+	$(RUN) gofmt -w $(APP_DIR)
 
 .PHONY: fmt-check
 fmt-check: ## Check source code formatting
-	@test -z "$$(gofmt -l $(APP_DIR))" || (echo "Unformatted files:"; gofmt -l $(APP_DIR); exit 1)
+	@test -z "$$($(RUN) gofmt -l $(APP_DIR))" || (echo "Unformatted files:"; $(RUN) gofmt -l $(APP_DIR); exit 1)
 
 .PHONY: vet
 vet: ## Run go vet
-	go -C $(APP_DIR) vet ./...
+	$(RUN) go -C $(APP_DIR) vet ./...
+
+.PHONY: lint
+lint: ## Run golangci-lint (config: app/.golangci.yml, includes the modernize analyzer)
+	cd $(APP_DIR) && $(RUN) golangci-lint run ./...
 
 .PHONY: tidy
 tidy: ## Tidy go.mod/go.sum
-	go -C $(APP_DIR) mod tidy
+	$(RUN) go -C $(APP_DIR) mod tidy
 
 .PHONY: check
-check: fmt-check vet test ## Run formatting, vet, and tests
+check: fmt-check vet lint test ## Run formatting, vet, lint, and tests
 
 .PHONY: docker-build
 docker-build: ## Build the Docker image (tagged with the VERSION file's version)
@@ -111,6 +106,28 @@ docker-down: ## Stop and remove the Docker Compose services
 .PHONY: docker-logs
 docker-logs: ## Tail the application container logs
 	docker compose logs -f app
+
+.PHONY: observability-up
+observability-up: ## Start the app plus the observability stack (Grafana, Prometheus, Loki, Tempo, Jaeger, Alloy) via Docker Compose
+	APP_VERSION=$(APP_VERSION) $(OBS_COMPOSE) up -d --build
+	@echo ""
+	@echo "  App         http://localhost:$(PORT)"
+	@echo "  Grafana     http://localhost:$(GRAFANA_PORT)   (dashboards: folder 'My World Cup App')"
+	@echo "  Prometheus  http://localhost:$(PROMETHEUS_PORT)"
+	@echo "  Jaeger      http://localhost:$(JAEGER_PORT)"
+	@echo "  Alloy       http://localhost:$(ALLOY_PORT)"
+
+.PHONY: observability-down
+observability-down: ## Stop the app and observability stack (add VOLUMES=1 to also delete stored metrics/logs/traces)
+	$(OBS_COMPOSE) down $(if $(VOLUMES),--volumes,)
+
+.PHONY: observability-logs
+observability-logs: ## Tail the logs of every container in the observability stack
+	$(OBS_COMPOSE) logs -f
+
+.PHONY: observability-validate
+observability-validate: ## Validate the observability Compose file, Alloy/Prometheus/Loki/Tempo configs, and Grafana dashboard JSON (needs Docker)
+	@scripts/observability-validate.sh
 
 .PHONY: docker-buildx-setup
 docker-buildx-setup: ## Create (or reuse) the Docker Buildx builder used for multi-arch images
@@ -137,7 +154,7 @@ docker-push: docker-buildx-setup helm-sync-version ## Build and push a multi-arc
 		*.*|*:*) ;; \
 		*) REGISTRY="" ;; \
 	esac; \
-	echo "$$DOCKER_PASS" | docker login $$REGISTRY --username "$$DOCKER_USER" --password-stdin; \
+	printf '%s\n' "$$DOCKER_PASS" | docker login $$REGISTRY --username "$$DOCKER_USER" --password-stdin; \
 	echo "Building and pushing $$DOCKER_REPO:$$TAG for $(DOCKER_PLATFORMS)..."; \
 	docker buildx build --builder $(BUILDX_BUILDER) --platform $(DOCKER_PLATFORMS) --build-arg APP_VERSION=$$TAG -t "$$DOCKER_REPO:$$TAG" --push .
 
@@ -147,24 +164,29 @@ helm-sync-version: ## Write the VERSION file's version into the Helm chart's app
 	@echo "$(CHART_DIR)/Chart.yaml appVersion set to $(APP_VERSION)"
 
 .PHONY: helm-lint
-helm-lint: ## Lint the Helm chart
-	helm lint $(CHART_DIR)
+helm-lint: ## Lint the Helm chart (Helm 4)
+	$(RUN) helm lint $(CHART_DIR)
+	$(RUN) helm lint $(CHART_DIR) --set ingress.enabled=true --set autoscaling.enabled=true
+
+.PHONY: helm-template
+helm-template: ## Render the Helm chart locally, including the optional ingress/HPA templates
+	$(RUN) helm template $(APP_NAME) $(CHART_DIR) --set ingress.enabled=true --set autoscaling.enabled=true
 
 .PHONY: helm-docs
 helm-docs: helm-sync-version ## Sync appVersion from VERSION, then regenerate the Helm chart README (helm/*/README.md) via helm-docs
-	helm-docs --chart-search-root helm
+	$(RUN) helm-docs --chart-search-root helm
 
 .PHONY: kind-load
 kind-load: docker-build ## Load the local Docker image into the kind cluster (KIND_CLUSTER, default kind-multinodes)
-	kind load docker-image $(APP_NAME):$(APP_VERSION) --name $(KIND_CLUSTER)
+	$(RUN) kind load docker-image $(APP_NAME):$(APP_VERSION) --name $(KIND_CLUSTER)
 
 .PHONY: helm-install
-helm-install: ## Install/upgrade the app into Kubernetes via Helm (namespace: NAMESPACE, default app name)
-	helm upgrade --install $(APP_NAME) $(CHART_DIR) -n $(NAMESPACE) --create-namespace
+helm-install: ## Install/upgrade the app into Kubernetes via Helm 4 (namespace: NAMESPACE, default app name)
+	$(RUN) helm upgrade --install $(APP_NAME) $(CHART_DIR) -n $(NAMESPACE) --create-namespace --wait --timeout 5m
 
 .PHONY: helm-uninstall
 helm-uninstall: ## Uninstall the Helm release from Kubernetes
-	helm uninstall $(APP_NAME) -n $(NAMESPACE)
+	$(RUN) helm uninstall $(APP_NAME) -n $(NAMESPACE)
 
 .PHONY: clean
 clean: ## Remove build artifacts

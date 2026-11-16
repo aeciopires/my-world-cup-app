@@ -47,7 +47,7 @@
             <td class="nowrap-cell" data-label="Date">{{.Date}}</td>
             <td class="team-cell"><span class="team">{{flag $.Flags .Team1}} {{linked $.TeamLinks .Team1}}</span> vs <span class="team">{{flag $.Flags .Team2}} {{linked $.TeamLinks .Team2}}</span></td>
             <td data-label="Result">
-              {{if .FullTime}}{{score .FullTime.Home .FullTime.Away}}{{else}}<span class="badge-scheduled">scheduled</span>{{end}}
+              {{result .}}
             </td>
           </tr>
           {{end}}

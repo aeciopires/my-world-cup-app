@@ -1,0 +1,60 @@
+# golangci-lint v2 configuration. Run via `make lint` (version pinned in mise.toml).
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - modernize # flags pre-Go-1.2x idioms (sort.Slice, manual min/max, ...)
+    - nilerr
+    - noctx
+    - revive
+    - unconvert
+    - usestdlibvars
+  settings:
+    misspell:
+      locale: US
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: indent-error-flow
+        - name: error-strings
+        - name: error-return
+        - name: receiver-naming
+        - name: increment-decrement
+        - name: blank-imports
+        - name: context-as-argument
+        - name: time-naming
+        - name: unreachable-code
+        - name: redefines-builtin-id
+        # unused-parameter is intentionally off: http.HandlerFunc
+        # signatures must accept *http.Request even when it's unused.
+    gosec:
+      excludes:
+        # The template funcs deliberately build trusted HTML from values
+        # they escape themselves (see internal/handlers/render.go).
+        - G203
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Tests use plain HTTP servers/requests and hand-built fixtures.
+      - path: _test\.go
+        linters: [gosec, noctx]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/aeciopires/my-world-cup-app

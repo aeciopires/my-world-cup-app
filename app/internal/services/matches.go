@@ -1,49 +1,35 @@
 package services
 
 import (
-	"sort"
+	"cmp"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/aeciopires/my-world-cup-app/internal/models"
 )
 
-// AllMatches returns every match sorted by date, then by match number.
+// AllMatches returns a copy of every match sorted by date, then by match
+// number. The tournament's own slice is never reordered, since it is shared
+// by every concurrent request reading the same snapshot.
 func AllMatches(t models.Tournament) []models.Match {
-	matches := make([]models.Match, len(t.Matches))
-	copy(matches, t.Matches)
-	sortMatchesByRoundAndDate(matches)
-	return matches
+	return sortMatchesByDate(slices.Clone(t.Matches))
 }
 
 // UpcomingMatches returns the next n unplayed matches, ordered by date.
 func UpcomingMatches(t models.Tournament, n int) []models.Match {
-	upcoming := make([]models.Match, 0)
-	for _, m := range t.Matches {
-		if !m.Played() {
-			upcoming = append(upcoming, m)
-		}
-	}
-	sortMatchesByRoundAndDate(upcoming)
-	if len(upcoming) > n {
-		upcoming = upcoming[:n]
-	}
-	return upcoming
+	upcoming := filterMatches(t.Matches, func(m models.Match) bool { return !m.Played() })
+	sortMatchesByDate(upcoming)
+	return firstN(upcoming, n)
 }
 
 // RecentResults returns the last n played matches, most recent first.
 func RecentResults(t models.Tournament, n int) []models.Match {
-	played := make([]models.Match, 0)
-	for _, m := range t.Matches {
-		if m.Played() {
-			played = append(played, m)
-		}
-	}
-	sortMatchesByRoundAndDate(played)
-	sort.SliceStable(played, func(i, j int) bool { return played[i].Date > played[j].Date })
-	if len(played) > n {
-		played = played[:n]
-	}
-	return played
+	played := filterMatches(t.Matches, models.Match.Played)
+	slices.SortStableFunc(played, func(a, b models.Match) int {
+		return cmp.Or(cmp.Compare(b.Date, a.Date), cmp.Compare(a.Num, b.Num))
+	})
+	return firstN(played, n)
 }
 
 // FilterMatches narrows matches down to those matching the given round,
@@ -51,20 +37,18 @@ func RecentResults(t models.Tournament, n int) []models.Match {
 // value matches every match for that dimension; team matches either side of
 // the fixture. The input order is preserved.
 func FilterMatches(matches []models.Match, round, group, team string) []models.Match {
-	filtered := make([]models.Match, 0, len(matches))
-	for _, m := range matches {
-		if round != "" && !strings.EqualFold(m.Round, round) {
-			continue
+	return filterMatches(matches, func(m models.Match) bool {
+		switch {
+		case round != "" && !strings.EqualFold(m.Round, round):
+			return false
+		case group != "" && !strings.EqualFold(m.Group, group):
+			return false
+		case team != "" && !strings.EqualFold(m.Team1, team) && !strings.EqualFold(m.Team2, team):
+			return false
+		default:
+			return true
 		}
-		if group != "" && !strings.EqualFold(m.Group, group) {
-			continue
-		}
-		if team != "" && !strings.EqualFold(m.Team1, team) && !strings.EqualFold(m.Team2, team) {
-			continue
-		}
-		filtered = append(filtered, m)
-	}
-	return filtered
+	})
 }
 
 // FilterOptions holds the distinct values available to filter the matches
@@ -79,36 +63,59 @@ type FilterOptions struct {
 // across the tournament's matches. Rounds are returned in schedule order
 // (group matchdays before knockout rounds); groups and teams are sorted
 // alphabetically.
+//
+// When the tournament carries a team list, only real team names are
+// offered: knockout fixtures not yet decided use placeholders such as
+// "W74" (winner of match 74) or "2A" (runner-up of Group A), which would
+// otherwise clutter the team dropdown.
 func MatchFilterOptions(t models.Tournament) FilterOptions {
-	ordered := AllMatches(t)
+	knownTeams := make(map[string]bool, len(t.Teams))
+	for _, team := range t.Teams {
+		knownTeams[team.Name] = true
+	}
+	isTeam := func(name string) bool {
+		return name != "" && (len(knownTeams) == 0 || knownTeams[name])
+	}
 
 	seenRounds := make(map[string]bool, len(knockoutRoundOrder))
 	rounds := make([]string, 0, len(knockoutRoundOrder))
-	groupSet := make(map[string]bool)
-	teamSet := make(map[string]bool)
-	for _, m := range ordered {
+	groupSet := make(map[string]struct{})
+	teamSet := make(map[string]struct{})
+	for _, m := range AllMatches(t) {
 		if m.Round != "" && !seenRounds[m.Round] {
 			seenRounds[m.Round] = true
 			rounds = append(rounds, m.Round)
 		}
 		if m.Group != "" {
-			groupSet[m.Group] = true
+			groupSet[m.Group] = struct{}{}
 		}
-		teamSet[m.Team1] = true
-		teamSet[m.Team2] = true
+		for _, team := range []string{m.Team1, m.Team2} {
+			if isTeam(team) {
+				teamSet[team] = struct{}{}
+			}
+		}
 	}
 
-	groups := make([]string, 0, len(groupSet))
-	for g := range groupSet {
-		groups = append(groups, g)
+	return FilterOptions{
+		Rounds: rounds,
+		Groups: slices.Sorted(maps.Keys(groupSet)),
+		Teams:  slices.Sorted(maps.Keys(teamSet)),
 	}
-	sort.Strings(groups)
+}
 
-	teams := make([]string, 0, len(teamSet))
-	for team := range teamSet {
-		teams = append(teams, team)
+// filterMatches returns a new slice with the matches satisfying keep, in
+// input order. It never aliases the input's backing array.
+func filterMatches(matches []models.Match, keep func(models.Match) bool) []models.Match {
+	out := make([]models.Match, 0, len(matches))
+	for _, m := range matches {
+		if keep(m) {
+			out = append(out, m)
+		}
 	}
-	sort.Strings(teams)
+	return out
+}
 
-	return FilterOptions{Rounds: rounds, Groups: groups, Teams: teams}
+// firstN returns at most the first n elements of s (none for n <= 0).
+func firstN[T any](s []T, n int) []T {
+	return s[:max(0, min(n, len(s)))]
 }

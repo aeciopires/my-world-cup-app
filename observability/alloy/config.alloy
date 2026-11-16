@@ -1,0 +1,133 @@
+// Grafana Alloy: the single collector of the local observability stack.
+//
+//   traces: app --OTLP--> otlp receiver --> batch --> Tempo + Jaeger
+//   logs:   Docker containers of this Compose project --> parse app JSON --> Loki
+//
+// Metrics are scraped by Prometheus directly (observability/prometheus).
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// ---------------------------------------------------------------- traces --
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    // Fan out: every span goes to both tracing backends.
+    traces = [
+      otelcol.exporter.otlp.tempo.input,
+      otelcol.exporter.otlp.jaeger.input,
+    ]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+otelcol.exporter.otlp "jaeger" {
+  client {
+    endpoint = "jaeger:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// ------------------------------------------------------------------ logs --
+
+// Only this Compose project's containers (see `name:` in docker-compose.yml).
+discovery.docker "compose" {
+  host = "unix:///var/run/docker.sock"
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=my-world-cup-app"]
+  }
+}
+
+discovery.relabel "compose" {
+  targets = []
+
+  // container="my-world-cup-app", "wca-grafana", ...
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  // service_name defaults to the Compose service ("loki", "tempo", ...) ...
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service_name"
+  }
+  // ... unless the container sets logging.service_name (the app does, so its
+  // logs share the traces' service.name).
+  rule {
+    source_labels = ["__meta_docker_container_label_logging_service_name"]
+    regex         = "(.+)"
+    target_label  = "service_name"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+loki.source.docker "compose" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.compose.targets
+  relabel_rules = discovery.relabel.compose.rules
+  forward_to    = [loki.process.app.receiver]
+}
+
+loki.process "app" {
+  // The app logs JSON (LOG_FORMAT=json): promote level to a label (cheap to
+  // filter, few values) and keep trace/span IDs as structured metadata
+  // (high-cardinality, so never labels) for log <-> trace correlation.
+  stage.match {
+    selector = "{service_name=\"my-world-cup-app\"}"
+
+    stage.json {
+      expressions = {
+        level    = "level",
+        trace_id = "trace_id",
+        span_id  = "span_id",
+      }
+    }
+    stage.labels {
+      values = {
+        level = "",
+      }
+    }
+    stage.structured_metadata {
+      values = {
+        trace_id = "",
+        span_id  = "",
+      }
+    }
+  }
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

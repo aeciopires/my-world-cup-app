@@ -5,7 +5,11 @@
 
 # Prerequisites
 
-- Install the kubectl, helm and helm-docs commands.
+- **Helm 4** (Helm 3 is no longer supported; rendering with it fails with an explicit error).
+- kubectl and access to a Kubernetes cluster.
+- helm-docs (only to regenerate this README).
+
+All of them are pinned in the repository's `mise.toml`; run `make install-deps` from the repository root to install them.
 
 # Installing the Chart
 
@@ -16,7 +20,7 @@
 - Test the installation with command:
 
 ```bash
-helm upgrade --install {{ template "chart.name" . }} -f {{ template "chart.name" . }}/values.yaml {{ template "chart.name" . }}/ -n {{ template "chart.name" . }} --create-namespace --dry-run
+helm upgrade --install {{ template "chart.name" . }} -f {{ template "chart.name" . }}/values.yaml {{ template "chart.name" . }}/ -n {{ template "chart.name" . }} --create-namespace --dry-run=client
 ```
 
 - To install/upgrade the chart with the release name `{{ template "chart.name" . }}`:
